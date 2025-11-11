@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+import json
 from typing import Dict, Any
 import re
 
@@ -24,7 +25,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
-from selenium.common.exceptions import WebDriverException, TimeoutException
+from selenium.common.exceptions import WebDriverException, TimeoutException, NoSuchElementException
 from selenium.common.exceptions import StaleElementReferenceException
 
 
@@ -257,6 +258,87 @@ def click_first_ver_mas_and_capture(driver, timeout: int = 30, out_path: str = "
 		return html[:4000]
 	except Exception as e:
 		return f"<ERROR: {e}>"
+
+
+
+
+def extract_client_info(driver):
+	"""Extrae la información del cliente desde la pestaña 'Cliente' en la página de detalle.
+
+	Devuelve un diccionario con campos comunes (name, birth_date, rfc, curp, sexo, estado_civil,
+	telefono_local, telefono_celular, email, id_cliente, codigo_venta). Los valores ausentes son cadenas vacías.
+	"""
+	# Mapear labels (en minúsculas) a claves de salida
+	fields = {
+		"nombre": "name",
+		"fecha nacimiento": "birth_date",
+		"rfc": "rfc",
+		"curp": "curp",
+		"sexo": "sexo",
+		"estado civil": "estado_civil",
+		"numero de telefono local": "telefono_local",
+		"numero de telefono celular": "telefono_celular",
+		"correo electronico": "email",
+		"id_cliente": "id_cliente",
+		"codigo_venta": "codigo_venta",
+	}
+
+	def find_by_label_text(label_text):
+		# probar varias XPaths robustas
+		xp_candidates = [
+			f"//label[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz') = '{label_text}']/following::p[1]",
+			f"//label[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{label_text}')]/following::p[1]",
+			f"//dt[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz') = '{label_text}']/following::dd[1]",
+			f"//div[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz') = '{label_text}']/following::p[1]",
+			f"//*[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz') = '{label_text}']/following::p[1]",
+		]
+		for xp in xp_candidates:
+			try:
+				el = driver.find_element(By.XPATH, xp)
+				txt = el.text.strip()
+				if txt:
+					return txt
+			except NoSuchElementException:
+				continue
+			except Exception:
+				continue
+		return ""
+
+	result = {v: "" for v in fields.values()}
+
+	# Extraer inputs ocultos id_cliente y codigo_venta primero
+	for hidden_name in ("id_cliente", "codigo_venta", "codigoVenta", "idCliente"):
+		try:
+			el = driver.find_element(By.XPATH, f"//input[@name='{hidden_name}']")
+			val = el.get_attribute('value') or ""
+			if val:
+				if 'id_cliente' in hidden_name or hidden_name == 'idCliente':
+					result['id_cliente'] = val
+				elif 'codigo' in hidden_name.lower():
+					result['codigo_venta'] = val
+		except Exception:
+			pass
+
+	# Extraer campos visibles por etiqueta
+	for label, key in fields.items():
+		if key in ("id_cliente", "codigo_venta"):
+			# ya manejados
+			continue
+		try:
+			val = find_by_label_text(label)
+		except Exception:
+			val = ""
+		result[key] = val or ""
+
+	# intento adicional para 'nombre' si quedó vacío
+	if not result.get('name'):
+		try:
+			el = driver.find_element(By.XPATH, "//label[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'nombre')]/following::p[1]")
+			result['name'] = el.text.strip()
+		except Exception:
+			pass
+
+	return result
 
 
 def detect_main_table(driver):
@@ -550,6 +632,28 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 			detail_preview = click_first_ver_mas_and_capture(driver, timeout=timeout, out_path="output/detail.html")
 			print("Detail page saved to output/detail.html (first 4000 chars or status):\n")
 			print(detail_preview)
+			# Extraer información del cliente desde la página ya cargada y guardar como JSON
+			try:
+				client = extract_client_info(driver)
+				# preparar directorio
+				outdir = os.path.dirname("output/clients.json") or "output"
+				if outdir and not os.path.exists(outdir):
+					os.makedirs(outdir, exist_ok=True)
+				clients_path = os.path.join(outdir, "clients.json")
+				clients_list = []
+				# si existe, cargar y añadir
+				if os.path.exists(clients_path):
+					try:
+						with open(clients_path, "r", encoding="utf-8") as fh:
+							clients_list = json.load(fh)
+					except Exception:
+						clients_list = []
+				clients_list.append(client)
+				with open(clients_path, "w", encoding="utf-8") as fh:
+					json.dump(clients_list, fh, ensure_ascii=False, indent=2)
+				print(f"Client data written to {clients_path} (keys: {list(client.keys())})")
+			except Exception as e:
+				print("Warning: could not extract or write client info:", e)
 		except Exception as e:
 			print("Warning: could not click first 'Ver más' and capture:", e)
 
