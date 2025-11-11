@@ -26,8 +26,11 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import WebDriverException, TimeoutException
 
 
-def fetch_source_page(headless: bool = True, timeout: int = 30) -> Dict[str, Any]:
+def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, Any]:
 	"""Carga SOURCE_PAGE_URL desde .env y la abre con Selenium.
+
+	Nota: por defecto abre el navegador en modo visible (headless=False) para
+	facilitar la verificación manual.
 
 	Retorna un dict con keys: url, title, html (str, truncated a 10000 chars), error (si aplica).
 	"""
@@ -211,7 +214,8 @@ def fetch_source_page(headless: bool = True, timeout: int = 30) -> Dict[str, Any
 
 
 def _main() -> int:
-	out = fetch_source_page(headless=True)
+	# Fuerza abrir el navegador visible
+	out = fetch_source_page(headless=False)
 	if "error" in out:
 		print("ERROR:", out["error"])
 		return 1
