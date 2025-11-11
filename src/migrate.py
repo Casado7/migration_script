@@ -272,13 +272,36 @@ def extract_client_info(driver):
 	fields = {
 		"nombre": "name",
 		"fecha nacimiento": "birth_date",
+		"lugar de nacimiento": "lugar_nacimiento",
+		"edad": "edad",
 		"rfc": "rfc",
 		"curp": "curp",
 		"sexo": "sexo",
 		"estado civil": "estado_civil",
+		# DIRECCIÓN
+		"calle": "calle",
+		"num. interior": "num_interior",
+		"num interior": "num_interior",
+		"num. exterior": "num_exterior",
+		"num exterior": "num_exterior",
+		"nacionalidad": "nacionalidad",
+		"país": "pais",
+		"pais": "pais",
+		"estado": "estado",
+		"localidad": "localidad",
+		"codigo postal": "codigo_postal",
+		"colonia": "colonia",
+		# CONTACTO
 		"numero de telefono local": "telefono_local",
 		"numero de telefono celular": "telefono_celular",
 		"correo electronico": "email",
+		# DATOS COMPLEMENTARIOS
+		"ocupacion": "ocupacion",
+		"actividad economica": "actividad_economica",
+		"tipo de identificacion": "tipo_identificacion",
+		"numero de identificacion": "numero_identificacion",
+		"tipo de persona": "tipo_persona",
+		# hidden / href-sourced
 		"id_cliente": "id_cliente",
 		"codigo_venta": "codigo_venta",
 	}
@@ -316,6 +339,33 @@ def extract_client_info(driver):
 					result['id_cliente'] = val
 				elif 'codigo' in hidden_name.lower():
 					result['codigo_venta'] = val
+		except Exception:
+			pass
+
+	# Si no se obtuvieron id_cliente/codigo_venta desde inputs, intentar extraer del enlace 'Modificar Datos'
+	if not result.get('id_cliente') or not result.get('codigo_venta'):
+		try:
+			anchors = driver.find_elements(By.XPATH, "//a[contains(@href,'Formulario_Cliente') or contains(@href,'Formulario_Cliente.php') or contains(@href,'Formulario_Cliente.php?id_cliente')]")
+			for a in anchors:
+				try:
+					href = a.get_attribute('href') or a.get_attribute('data-href') or ''
+					if not href:
+						continue
+					# parse query params
+					from urllib.parse import urlparse, parse_qs
+
+					parsed = urlparse(href)
+					qs = parse_qs(parsed.query)
+					idc = qs.get('id_cliente') or qs.get('idCliente') or qs.get('id')
+					cod = qs.get('codigo_venta') or qs.get('codigoVenta') or qs.get('codigo')
+					if idc and not result.get('id_cliente'):
+						result['id_cliente'] = idc[0]
+					if cod and not result.get('codigo_venta'):
+						result['codigo_venta'] = cod[0]
+					if result.get('id_cliente') and result.get('codigo_venta'):
+						break
+				except Exception:
+					continue
 		except Exception:
 			pass
 
