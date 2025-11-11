@@ -99,6 +99,87 @@ def click_first_ver_mas_in_last_column(driver, timeout: int = 30) -> bool:
 	if not rows:
 		return False
 
+
+def click_first_ver_mas_and_capture(driver, timeout: int = 30, out_path: str = "output/detail.html") -> str:
+	"""Clica el primer 'Ver más' en la última columna de la primera fila y captura la página destino.
+
+	Devuelve un preview del HTML destino (primeros 4000 chars) o '<NO_NAV>' si no navegó.
+	"""
+	current = None
+	try:
+		current = driver.current_url
+		# Intentar un selector XPath directo a la primera fila, última celda, botón 'Ver más'
+		direct_xpath = "(//table//tr[td])[1]/td[last()]//button[contains(normalize-space(.),'Ver m') or contains(normalize-space(.),'Ver más') or contains(normalize-space(.),'Ver mas')]"
+		try:
+			elem = driver.find_element(By.XPATH, direct_xpath)
+			elem.click()
+			success = True
+		except Exception:
+			# fallback a la heurística anterior
+			success = click_first_ver_mas_in_last_column(driver, timeout=timeout)
+		if not success:
+			return "<NO_CLICK>"
+		# esperar cambio de URL o carga
+		try:
+			WebDriverWait(driver, timeout).until(lambda d: d.current_url != current)
+		except Exception:
+			# si no cambió URL, esperar un poco más por la navegación completa
+			time.sleep(1)
+		# ahora guardar page_source
+		html = driver.page_source
+		# asegurar directorio
+		import os as _os
+		dirname = _os.path.dirname(out_path)
+		if dirname and not _os.path.exists(dirname):
+			_os.makedirs(dirname, exist_ok=True)
+		with open(out_path, "w", encoding="utf-8") as fh:
+			fh.write(html)
+		return html[:4000]
+	except Exception as e:
+		return f"<ERROR: {e}>"
+
+
+def detect_main_table(driver):
+	"""Intenta localizar la tabla principal de ventas en la página.
+
+	Devuelve el elemento WebElement de la primera tabla que parece contener filas de datos,
+	o None si no se encontró ninguna.
+	"""
+	tables = driver.find_elements(By.XPATH, "//table")
+	if not tables:
+		return None
+
+	# Heurística: elegir la primera tabla que tenga al menos una fila con celdas (<tr><td>)
+	for t in tables:
+		try:
+			rows = t.find_elements(By.XPATH, ".//tr[td]")
+			if rows and len(rows) >= 1:
+				return t
+		except Exception:
+			continue
+	return None
+
+
+def dump_table_html(driver, out_path: str = "output/table.html") -> str:
+	"""Guarda el outerHTML de la tabla principal en `out_path` y retorna un preview (primeros 4000 chars).
+	Crea el directorio `output/` si no existe.
+	"""
+	table = detect_main_table(driver)
+	if table is None:
+		return "<NO_TABLE_FOUND>"
+
+	html = table.get_attribute("outerHTML")
+	# asegurar directorio
+	import os as _os
+	dirname = _os.path.dirname(out_path)
+	if dirname and not _os.path.exists(dirname):
+		_os.makedirs(dirname, exist_ok=True)
+
+	with open(out_path, "w", encoding="utf-8") as fh:
+		fh.write(html)
+
+	return html[:4000]
+
 	first_row = rows[0]
 	# obtener la última celda
 	try:
@@ -106,11 +187,15 @@ def click_first_ver_mas_in_last_column(driver, timeout: int = 30) -> bool:
 		if not cells:
 			return False
 		last_td = cells[-1]
-		# buscar el primer elemento clickeable dentro
-		candidates = last_td.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
-		if not candidates:
-			return False
-		el = candidates[0]
+		# intentar buscar específicamente el botón 'Ver más' dentro de la última celda
+		try:
+			el = last_td.find_element(By.XPATH, ".//button[contains(.,'Ver más') or contains(.,'Ver mas') or contains(.,'ver mas') or contains(.,'VER MAS')]")
+		except Exception:
+			# fallback: buscar el primer elemento clickeable dentro
+			candidates = last_td.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
+			if not candidates:
+				return False
+			el = candidates[0]
 		# click seguro
 		driver.execute_script('arguments[0].scrollIntoView(true);', el)
 		el.click()
@@ -331,6 +416,23 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 		# pequeña espera para permitir JS adicional (ajustable)
 		time.sleep(1)
 		title = driver.title
+
+		# Volcar HTML de la tabla principal para inspección humana
+		try:
+			table_preview = dump_table_html(driver, out_path="output/table.html")
+			print("Table preview saved to output/table.html (first 4000 chars):\n")
+			print(table_preview)
+		except Exception as e:
+			print("Warning: could not dump table html:", e)
+
+		# Intentar clicar el primer 'Ver más' y capturar la página destino
+		try:
+			detail_preview = click_first_ver_mas_and_capture(driver, timeout=timeout, out_path="output/detail.html")
+			print("Detail page saved to output/detail.html (first 4000 chars or status):\n")
+			print(detail_preview)
+		except Exception as e:
+			print("Warning: could not click first 'Ver más' and capture:", e)
+
 		html = driver.page_source
 
 		return {"url": url, "title": title, "html": html[:10000]}
