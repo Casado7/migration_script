@@ -994,8 +994,8 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 		# Volcar HTML de la tabla principal para inspección humana
 		try:
 			table_preview = dump_table_html(driver, out_path="output/table.html")
-			print("Table preview saved to output/table.html (first 4000 chars):\n")
-			print(table_preview)
+			# table saved for inspection; do not print full HTML to console to avoid noisy output
+			print("Table preview saved to output/table.html")
 		except Exception as e:
 			print("Warning: could not dump table html:", e)
 
@@ -1031,8 +1031,7 @@ def _main() -> int:
 
 	print("URL:", out.get("url"))
 	print("Title:", out.get("title"))
-	print("HTML preview (first 1000 chars):\n")
-	print(out.get("html", "")[:1000])
+	# do not print HTML preview to console (can be very large)
 	return 0
 
 
