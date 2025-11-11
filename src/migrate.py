@@ -271,6 +271,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 	"""
 	clients = []
 	seen_codes = set()
+	skipped_rows = []  # collect diagnostics about skipped rows
 
 	# cargar existentes si hay
 	try:
@@ -341,6 +342,9 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 			# si ya vimos este codigo, saltar (preserva orden de filas únicas)
 			if code_from_row and code_from_row in seen_codes:
 				# skip without clicking to preserve table order
+				msg = f"Skipping row {i}: duplicate code_from_row {code_from_row}"
+				print(msg)
+				skipped_rows.append({"row_index": i, "reason": "duplicate_code_in_existing", "codigo_venta": code_from_row})
 				continue
 
 			el = None
@@ -356,6 +360,11 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 
 			if el is None:
 				# nada para clicar en esta fila
+				row_html = ""
+				try:
+					row_html = row.get_attribute('outerHTML')[:2000]
+				except Exception:
+					row_html = "<unable to get row html>"
 				# still, if code_from_row exists and not seen, add a placeholder client with only code
 				if code_from_row and code_from_row not in seen_codes:
 					client = {k: "" for k in ("name","birth_date","rfc","curp","sexo","estado_civil","telefono_local","telefono_celular","email","id_cliente","codigo_venta")}
@@ -369,7 +378,18 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 						with open(out_path, 'w', encoding='utf-8') as fh:
 							json.dump(clients, fh, ensure_ascii=False, indent=2)
 					except Exception:
-						pass
+						print('Warning: could not write placeholder client to file')
+					# record this event for diagnostics
+					skipped_rows.append({
+						"row_index": i,
+						"reason": "no_clickable_element_but_code_placeholder_created",
+						"codigo_venta": code_from_row,
+						"row_html": row_html,
+					})
+					continue
+				# no code and no clickable element -> log and continue
+				skipped_rows.append({"row_index": i, "reason": "no_clickable_element_no_code", "row_html": row_html})
+				print(f"Row {i} skipped: no clickable element and no code found")
 				continue
 
 			# click y manejar si abre en nueva ventana/pestaña
@@ -382,6 +402,11 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 					el.click()
 				except Exception:
 					print(f"No se pudo clickear Ver más en fila {i}")
+					try:
+						row_html = row.get_attribute('outerHTML')[:2000]
+					except Exception:
+						row_html = "<unable to get row html>"
+					skipped_rows.append({"row_index": i, "reason": "click_failed", "row_html": row_html})
 					continue
 
 			# esperar breve para que cambie readyState o se abra nueva ventana
@@ -465,10 +490,20 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 			except Exception as e:
 				print(f"Error extrayendo cliente en fila {i}: {e}")
 				client = {}
+				try:
+					row_html = row.get_attribute('outerHTML')[:2000]
+				except Exception:
+					row_html = "<unable to get row html>"
+				skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
 
 			code = client.get('codigo_venta') or client.get('codigo') or ''
 			if code and code in seen_codes:
 				print(f"Skipping duplicate codigo_venta {code}")
+				# record duplicates found after extraction
+				try:
+					skipped_rows.append({"row_index": i, "reason": "duplicate_after_extraction", "codigo_venta": code})
+				except Exception:
+					pass
 			else:
 				clients.append(client)
 				if code:
@@ -534,6 +569,16 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 			continue
 
 	print(f"Extraction finished: {len(clients)} clients (including pre-existing)")
+	# escribir diagnóstico de filas saltadas para inspección
+	try:
+		dirname = os.path.dirname(out_path) or 'output'
+		if dirname and not os.path.exists(dirname):
+			os.makedirs(dirname, exist_ok=True)
+		with open(os.path.join(dirname, 'skip_rows_debug.json'), 'w', encoding='utf-8') as fh:
+			json.dump(skipped_rows, fh, ensure_ascii=False, indent=2)
+		print(f"Wrote skip_rows_debug.json with {len(skipped_rows)} records for diagnosis")
+	except Exception as e:
+		print('Warning: could not write skip_rows_debug.json:', e)
 	return clients
 
 
