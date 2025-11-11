@@ -310,11 +310,37 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 			if i >= len(rows):
 				break
 			row = rows[i]
-
-			# localizar el elemento 'Ver más' en la última celda
+			# localizar la última celda y tratar de obtener codigo_venta desde la fila
 			try:
 				last_td = row.find_element(By.XPATH, "./td[last()]")
 			except Exception:
+				continue
+
+			# intentar leer codigo_venta directamente desde inputs en la fila (evita navegar cuando ya visto)
+			code_from_row = ""
+			try:
+				# buscar input hidden dentro de la última celda o en la fila
+				try:
+					inp = last_td.find_element(By.XPATH, ".//input[@name='codigo_venta']")
+					code_from_row = (inp.get_attribute('value') or "").strip()
+				except Exception:
+					# buscar en la fila entero
+					try:
+						inp = row.find_element(By.XPATH, ".//input[@name='codigo_venta']")
+						code_from_row = (inp.get_attribute('value') or "").strip()
+					except Exception:
+						# fallback: buscar cualquier hidden input with 'codigo' in name
+						try:
+							inp = row.find_element(By.XPATH, ".//input[contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'codigo')]")
+							code_from_row = (inp.get_attribute('value') or "").strip()
+						except Exception:
+							code_from_row = ""
+			except Exception:
+				code_from_row = ""
+
+			# si ya vimos este codigo, saltar (preserva orden de filas únicas)
+			if code_from_row and code_from_row in seen_codes:
+				# skip without clicking to preserve table order
 				continue
 
 			el = None
@@ -330,9 +356,24 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 
 			if el is None:
 				# nada para clicar en esta fila
+				# still, if code_from_row exists and not seen, add a placeholder client with only code
+				if code_from_row and code_from_row not in seen_codes:
+					client = {k: "" for k in ("name","birth_date","rfc","curp","sexo","estado_civil","telefono_local","telefono_celular","email","id_cliente","codigo_venta")}
+					client['codigo_venta'] = code_from_row
+					clients.append(client)
+					seen_codes.add(code_from_row)
+					try:
+						dirname = os.path.dirname(out_path)
+						if dirname and not os.path.exists(dirname):
+							os.makedirs(dirname, exist_ok=True)
+						with open(out_path, 'w', encoding='utf-8') as fh:
+							json.dump(clients, fh, ensure_ascii=False, indent=2)
+					except Exception:
+						pass
 				continue
 
-			# click y esperar navegación/actualización
+			# click y manejar si abre en nueva ventana/pestaña
+			prev_handles = driver.window_handles
 			try:
 				driver.execute_script('arguments[0].scrollIntoView(true);', el)
 				driver.execute_script('arguments[0].click();', el)
@@ -343,11 +384,33 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 					print(f"No se pudo clickear Ver más en fila {i}")
 					continue
 
-			# esperar la carga
-			try:
-				WebDriverWait(driver, timeout).until(lambda d: d.execute_script("return document.readyState") == "complete")
-			except Exception:
-				time.sleep(0.8)
+			# esperar breve para que cambie readyState o se abra nueva ventana
+			time.sleep(0.5)
+			new_handles = driver.window_handles
+
+			opened_new_window = False
+			original_handle = None
+			if len(new_handles) > len(prev_handles):
+				# una nueva ventana/pestaña se abrió
+				opened_new_window = True
+				# elegir el handle nuevo
+				new_handle = [h for h in new_handles if h not in prev_handles][0]
+				try:
+					original_handle = driver.current_window_handle
+				except Exception:
+					original_handle = prev_handles[0] if prev_handles else None
+				try:
+					driver.switch_to.window(new_handle)
+				except Exception:
+					# si no es posible, continuar con la ventana actual
+					opened_new_window = False
+
+			# si no se abrió nueva ventana, esperar la carga en la misma pestaña
+			if not opened_new_window:
+				try:
+					WebDriverWait(driver, timeout).until(lambda d: d.execute_script("return document.readyState") == "complete")
+				except Exception:
+					time.sleep(0.8)
 
 			# intentar cerrar modales rápidos (misma heurística que antes)
 			try:
@@ -420,14 +483,43 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				except Exception as e:
 					print('Warning: could not write clients file:', e)
 
-			# volver atrás a la tabla (si la navegación fue en la misma pestaña)
+			# cerrar ventana nueva si abrimos una y volver a la original
 			try:
-				driver.back()
-				# esperar que la tabla reaparezca
-				WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
-				time.sleep(0.4)
+				if opened_new_window and original_handle:
+					try:
+						# cerrar la ventana actual (detalle)
+						driver.close()
+					except Exception:
+						pass
+					try:
+						driver.switch_to.window(original_handle)
+					except Exception:
+						# fallback: recargar la página fuente
+						try:
+							url = os.getenv('SOURCE_PAGE_URL')
+							if url:
+								driver.get(url)
+								WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
+								time.sleep(0.6)
+						except Exception:
+							pass
+				else:
+					# navegación en la misma pestaña: intentar back
+					try:
+						driver.back()
+						WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
+						time.sleep(0.4)
+					except Exception:
+						try:
+							url = os.getenv('SOURCE_PAGE_URL')
+							if url:
+								driver.get(url)
+								WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
+								time.sleep(0.6)
+						except Exception:
+							pass
 			except Exception:
-				# como fallback, recargar la URL inicial si existe en .env
+				# en caso de cualquier fallo no bloquear la iteración
 				try:
 					url = os.getenv('SOURCE_PAGE_URL')
 					if url:
