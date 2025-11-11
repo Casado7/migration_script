@@ -14,6 +14,7 @@ import os
 import sys
 import time
 from typing import Dict, Any
+import re
 
 from dotenv import load_dotenv
 
@@ -24,6 +25,69 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 from selenium.common.exceptions import WebDriverException, TimeoutException
+from selenium.common.exceptions import StaleElementReferenceException
+
+
+def expand_view_more_in_table(driver, timeout: int = 30) -> None:
+	"""Recorre filas de tablas y hace click en botones/enlaces "Ver más" dentro de cada fila.
+
+	La función usa heurísticas para encontrar los elementos y intenta cerrar modales
+	(enviando ESC) después de abrirlos para continuar con la siguiente fila.
+	"""
+	# Buscar filas en tablas
+	rows = driver.find_elements(By.XPATH, "//table//tr")
+	if not rows:
+		# intentar buscar contenedores con clase 'tabla' o 'tabla-ventas'
+		rows = driver.find_elements(By.XPATH, "//*[contains(@class,'tabla') or contains(@class,'table')]//tr")
+		if not rows:
+			return
+
+	for i, row in enumerate(rows):
+		# obtener botones/enlaces dentro de la fila
+		try:
+			candidates = row.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
+		except StaleElementReferenceException:
+			continue
+
+		for el in candidates:
+			# obtener texto (manejar elementos input)
+			try:
+				text = (el.text or el.get_attribute('value') or '').strip()
+			except StaleElementReferenceException:
+				continue
+
+			if not text:
+				continue
+
+			# normalizar y buscar 'ver mas' (sin acento)
+			text_norm = text.lower()
+			text_norm = text_norm.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+
+			if re.search(r"\bver\s*mas\b", text_norm):
+				# intentar click y manejo simple de modal
+				try:
+					driver.execute_script('arguments[0].scrollIntoView(true);', el)
+					el.click()
+					time.sleep(0.8)
+					# intentar cerrar modal o enviar ESC
+					try:
+						close_btns = driver.find_elements(By.XPATH, "//button[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cerrar')] | //button[contains(@class,'close')] | //a[contains(@class,'close')]")
+						if close_btns:
+							close_btns[0].click()
+						else:
+							body = driver.find_element(By.TAG_NAME, 'body')
+							body.send_keys(Keys.ESCAPE)
+						time.sleep(0.3)
+					except Exception:
+						# ignorar errores al cerrar modal
+						pass
+				except Exception:
+					# ignorar errores en click y seguir
+					pass
+
+				# dar un pequeño retardo para evitar acciones demasiado rápidas
+				time.sleep(0.2)
+
 
 
 def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, Any]:
@@ -212,6 +276,13 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 
 		# pequeña espera para permitir JS adicional (ajustable)
 		time.sleep(1)
+
+		# intentar expandir cada 'Ver más' dentro de la tabla de ventas
+		try:
+			expand_view_more_in_table(driver, timeout=timeout)
+		except Exception:
+			# no crítico, continuar
+			pass
 
 		title = driver.title
 		html = driver.page_source
