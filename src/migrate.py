@@ -89,6 +89,39 @@ def expand_view_more_in_table(driver, timeout: int = 30) -> None:
 				time.sleep(0.2)
 
 
+def click_first_ver_mas_in_last_column(driver, timeout: int = 30) -> bool:
+	"""Click en el primer botón/enlace dentro de la última columna de la primera fila de datos.
+
+	Retorna True si realizó el click, False si no encontró el elemento.
+	"""
+	# seleccionar filas que contienen celdas (evitar encabezados)
+	rows = driver.find_elements(By.XPATH, "//table//tr[td]")
+	if not rows:
+		return False
+
+	first_row = rows[0]
+	# obtener la última celda
+	try:
+		cells = first_row.find_elements(By.XPATH, "./td")
+		if not cells:
+			return False
+		last_td = cells[-1]
+		# buscar el primer elemento clickeable dentro
+		candidates = last_td.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
+		if not candidates:
+			return False
+		el = candidates[0]
+		# click seguro
+		driver.execute_script('arguments[0].scrollIntoView(true);', el)
+		el.click()
+		time.sleep(0.8)
+		return True
+	except StaleElementReferenceException:
+		return False
+	except Exception:
+		return False
+
+
 
 def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, Any]:
 	"""Carga SOURCE_PAGE_URL desde .env y la abre con Selenium.
@@ -277,9 +310,12 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 		# pequeña espera para permitir JS adicional (ajustable)
 		time.sleep(1)
 
-		# intentar expandir cada 'Ver más' dentro de la tabla de ventas
+		# Para pruebas: click solo el primer 'Ver más' en la última columna de la primera fila
 		try:
-			expand_view_more_in_table(driver, timeout=timeout)
+			clicked = click_first_ver_mas_in_last_column(driver, timeout=timeout)
+			# si no se encontró, intentar la expansión completa como fallback
+			if not clicked:
+				expand_view_more_in_table(driver, timeout=timeout)
 		except Exception:
 			# no crítico, continuar
 			pass
