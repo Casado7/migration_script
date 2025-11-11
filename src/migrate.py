@@ -65,14 +65,14 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 		driver.get(url)
 
 		# Si la página redirige a un formulario de login, intentaremos autenticarnos
-		def _attempt_login_if_needed() -> None:
+		def _attempt_login_if_needed() -> bool:
 			try:
 				pwd_inputs = driver.find_elements(By.XPATH, "//input[@type='password']")
 			except Exception:
 				pwd_inputs = []
 
 			if not pwd_inputs:
-				return
+				return False
 
 			# necesitaremos credenciales en env
 			username = os.getenv("HOST_USERNAME")
@@ -178,11 +178,28 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 				# tolerar tiempo de espera; continuamos
 				pass
 
+			return submitted
+
 		# intentar login si detectamos formulario de password
 		try:
-			_attempt_login_if_needed()
+			login_submitted = _attempt_login_if_needed()
 		except Exception as e:
 			return {"error": str(e)}
+
+		# Si tras el login la URL actual no es la que queremos, navegar explícitamente
+		try:
+			if driver.current_url.rstrip('/') != url.rstrip('/') or login_submitted:
+				# navegar al recurso objetivo
+				driver.get(url)
+				try:
+					WebDriverWait(driver, min(timeout, 20)).until(
+						lambda d: d.execute_script("return document.readyState") == "complete"
+					)
+				except Exception:
+					pass
+		except Exception:
+			# no crítico, continuamos y devolveremos el html actual (posiblemente de la home)
+			pass
 
 		# Esperar hasta que document.readyState sea 'complete' o hasta timeout
 		try:
