@@ -1,2 +1,0 @@
-python-dotenv>=1.0.0
-# Añade aquí otras dependencias (psycopg2-binary, sqlalchemy, requests, etc.) según las fuentes/destinos que uses
