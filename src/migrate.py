@@ -294,6 +294,27 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 					)
 				except Exception:
 					pass
+
+			# Si tras navegar seguimos encontrando un formulario de login, intentar login una vez más
+			try:
+				pwd_inputs_now = driver.find_elements(By.XPATH, "//input[@type='password']")
+			except Exception:
+				pwd_inputs_now = []
+
+			if pwd_inputs_now:
+				try:
+					second_submitted = _attempt_login_if_needed()
+				except Exception as e:
+					return {"error": str(e)}
+
+				if second_submitted:
+						driver.get(url)
+						try:
+							WebDriverWait(driver, min(timeout, 20)).until(
+								lambda d: d.execute_script("return document.readyState") == "complete"
+							)
+						except Exception:
+							pass
 		except Exception:
 			# no crítico, continuamos y devolveremos el html actual (posiblemente de la home)
 			pass
@@ -309,17 +330,6 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 
 		# pequeña espera para permitir JS adicional (ajustable)
 		time.sleep(1)
-
-		# Para pruebas: click solo el primer 'Ver más' en la última columna de la primera fila
-		try:
-			clicked = click_first_ver_mas_in_last_column(driver, timeout=timeout)
-			# si no se encontró, intentar la expansión completa como fallback
-			if not clicked:
-				expand_view_more_in_table(driver, timeout=timeout)
-		except Exception:
-			# no crítico, continuar
-			pass
-
 		title = driver.title
 		html = driver.page_source
 
