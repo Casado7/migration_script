@@ -188,6 +188,63 @@ def click_first_ver_mas_and_capture(driver, timeout: int = 30, out_path: str = "
 			# ignorar cualquier fallo en el intento de cerrar modal
 			pass
 
+		# intentar clicar la pestaña 'Cliente' si está presente (después de cerrar modales)
+		try:
+			clicked_tab = False
+			# XPaths comunes para la pestaña 'Cliente'
+			tab_xpaths = [
+				"//a[normalize-space(.)='Cliente']",
+				"//button[normalize-space(.)='Cliente']",
+				"//li[normalize-space(.)='Cliente']",
+				"//a[contains(normalize-space(.),'Cliente')]",
+				"//button[contains(normalize-space(.),'Cliente')]",
+				"//*[@role='tab' and contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cliente')]",
+				"//ul[contains(@class,'nav') or contains(@class,'tabs')]//a[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cliente')]",
+			]
+			for xp in tab_xpaths:
+				els = driver.find_elements(By.XPATH, xp)
+				if els:
+					for el in els:
+						try:
+							# asegurar visible / scrollear
+							driver.execute_script('arguments[0].scrollIntoView({block:"center",inline:"nearest"});', el)
+							# usar click vía JS para disparar handlers ligados por jQuery/bootstrap
+							driver.execute_script('arguments[0].click();', el)
+							# si hay función tab_seleccionado, llamarla como fallback
+							try:
+								driver.execute_script("if(typeof tab_seleccionado === 'function'){ tab_seleccionado(1,'cliente'); }")
+							except Exception:
+								pass
+							clicked_tab = True
+							# esperar hasta que el enlace tenga la clase 'active' (Bootstrap) o hasta timeout corto
+							try:
+								WebDriverWait(driver, 3).until(
+									lambda d, el=el: 'active' in (d.execute_script('return arguments[0].className;', el) or '')
+								)
+							except Exception:
+								# fallback: intentar llamar a la función JS que activa pestañas si existe
+								try:
+									driver.execute_script("if(typeof tab_seleccionado === 'function'){ tab_seleccionado(1,'cliente'); }")
+									# esperar un poquito tras la invocación
+									WebDriverWait(driver, 3).until(lambda d: 'active' in (d.find_element(By.ID, 'cliente').get_attribute('class') or ''))
+								except Exception:
+									pass
+							time.sleep(0.2)
+						except Exception:
+							# ignorar fallos y seguir probando otras coincidencias
+							continue
+				if clicked_tab:
+					break
+			if clicked_tab:
+				# esperar por la carga si hubo navegación parcial
+				try:
+					WebDriverWait(driver, min(timeout, 10)).until(lambda d: d.execute_script("return document.readyState") == "complete")
+				except Exception:
+					time.sleep(0.5)
+		except Exception:
+			# ignorar cualquier fallo al intentar clicar la pestaña
+			pass
+
 		# ahora guardar page_source
 		html = driver.page_source
 		# asegurar directorio
