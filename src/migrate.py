@@ -6,6 +6,7 @@ Modo de uso:
 """
 import os
 import argparse
+import webbrowser
 from dotenv import load_dotenv
 
 
@@ -13,6 +14,7 @@ def load_config():
     load_dotenv()
     return {
         'SOURCE_DB_URL': os.getenv('SOURCE_DB_URL'),
+        'SOURCE_PAGE_URL': os.getenv('SOURCE_PAGE_URL'),
         'TARGET_DB_URL': os.getenv('TARGET_DB_URL'),
         'LOG_LEVEL': os.getenv('LOG_LEVEL', 'INFO'),
         'DRY_RUN': os.getenv('DRY_RUN', 'true').lower() in ('1', 'true', 'yes')
@@ -24,7 +26,22 @@ def main():
 
     parser = argparse.ArgumentParser(description='Migración de datos ERP')
     parser.add_argument('--dry-run', action='store_true', help='No escribe en el destino; solo simula')
+    parser.add_argument('--open-source', action='store_true', help='Abrir la página SOURCE en el navegador por defecto')
     args = parser.parse_args()
+
+    # Si el usuario pidió abrir la página source, abrirla y salir
+    if getattr(args, 'open_source', False):
+        source_page = cfg.get('SOURCE_PAGE_URL')
+        if not source_page:
+            print('ERROR: SOURCE_PAGE_URL no está definida en .env')
+            return
+        print(f'Abrir en el navegador: {source_page}')
+        try:
+            webbrowser.open(source_page, new=2)
+            print('Se intentó abrir la URL en el navegador por defecto.')
+        except Exception as e:
+            print('Error al intentar abrir el navegador:', e)
+        return
 
     dry_run = args.dry_run or cfg.get('DRY_RUN')
 
