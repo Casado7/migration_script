@@ -99,6 +99,31 @@ def click_first_ver_mas_in_last_column(driver, timeout: int = 30) -> bool:
 	if not rows:
 		return False
 
+	first_row = rows[0]
+	# obtener la última celda
+	try:
+		cells = first_row.find_elements(By.XPATH, "./td")
+		if not cells:
+			return False
+		last_td = cells[-1]
+		# intentar buscar específicamente el botón 'Ver más' dentro de la última celda
+		try:
+			el = last_td.find_element(By.XPATH, ".//button[contains(.,'Ver más') or contains(.,'Ver mas') or contains(.,'ver mas') or contains(.,'VER MAS')]")
+		except Exception:
+			# fallback: buscar el primer elemento clickeable dentro
+			candidates = last_td.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
+			if not candidates:
+				return False
+			el = candidates[0]
+		# click seguro
+		driver.execute_script('arguments[0].scrollIntoView(true);', el)
+		el.click()
+		time.sleep(0.8)
+		return True
+	except StaleElementReferenceException:
+		return False
+	except Exception:
+		return False
 
 def click_first_ver_mas_and_capture(driver, timeout: int = 30, out_path: str = "output/detail.html") -> str:
 	"""Clica el primer 'Ver más' en la última columna de la primera fila y captura la página destino.
@@ -125,6 +150,44 @@ def click_first_ver_mas_and_capture(driver, timeout: int = 30, out_path: str = "
 		except Exception:
 			# si no cambió URL, esperar un poco más por la navegación completa
 			time.sleep(1)
+		# intentar cerrar modal(s) comunes en la página destino antes de guardar
+		try:
+			# lista de XPaths comunes para botones de cerrar (español/ingles)
+			close_xpaths = [
+				"//button[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cerrar')]",
+				"//button[contains(@class,'close')]",
+				"//a[contains(@class,'close')]",
+				"//button[@aria-label='Close' or @aria-label='close']",
+				"//button[contains(.,'\u00d7') or contains(.,'×') or normalize-space(.)='x']",
+				"//*[contains(@class,'modal') or contains(@class,'dialog')]//button[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cerrar') or contains(@class,'close')]",
+			]
+			clicked = False
+			for xp in close_xpaths:
+				btns = driver.find_elements(By.XPATH, xp)
+				for b in btns:
+					try:
+						driver.execute_script('arguments[0].scrollIntoView(true);', b)
+						b.click()
+						clicked = True
+						time.sleep(0.4)
+						break
+					except Exception:
+						# ignorar errores al clicar este botón y probar siguiente
+						continue
+				if clicked:
+					break
+			# si no encontramos botón, intentar enviar ESC
+			if not clicked:
+				try:
+					body = driver.find_element(By.TAG_NAME, 'body')
+					body.send_keys(Keys.ESCAPE)
+					time.sleep(0.3)
+				except Exception:
+					pass
+		except Exception:
+			# ignorar cualquier fallo en el intento de cerrar modal
+			pass
+
 		# ahora guardar page_source
 		html = driver.page_source
 		# asegurar directorio
