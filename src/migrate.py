@@ -20,6 +20,8 @@ from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 from selenium.common.exceptions import WebDriverException, TimeoutException
 
@@ -58,6 +60,126 @@ def fetch_source_page(headless: bool = True, timeout: int = 30) -> Dict[str, Any
 		driver = webdriver.Chrome(options=options)
 		driver.set_page_load_timeout(timeout)
 		driver.get(url)
+
+		# Si la página redirige a un formulario de login, intentaremos autenticarnos
+		def _attempt_login_if_needed() -> None:
+			try:
+				pwd_inputs = driver.find_elements(By.XPATH, "//input[@type='password']")
+			except Exception:
+				pwd_inputs = []
+
+			if not pwd_inputs:
+				return
+
+			# necesitaremos credenciales en env
+			username = os.getenv("HOST_USERNAME")
+			password = os.getenv("HOST_PASSWORD")
+			if not username or not password:
+				raise RuntimeError("LOGIN_REQUIRED: falta HOST_USERNAME o HOST_PASSWORD en .env")
+
+			# heurísticas para localizar el campo de usuario
+			username_candidate = None
+			# primero intentar buscar dentro del mismo form que el campo password
+			try:
+				form = pwd_inputs[0].find_element(By.XPATH, "./ancestor::form")
+			except Exception:
+				form = None
+
+			search_xpaths = []
+			if form is not None:
+				# buscar inputs relevantes dentro del form
+				search_xpaths = [
+					".//input[@type='text']",
+					".//input[@type='email']",
+					".//input[contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'user')]",
+					".//input[contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'username')]",
+					".//input[contains(translate(@id,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'user')]",
+					".//input[contains(translate(@id,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'username')]",
+				]
+				for xp in search_xpaths:
+					try:
+						el = form.find_elements(By.XPATH, xp)
+						if el:
+							username_candidate = el[0]
+							break
+					except Exception:
+						continue
+
+			# si no encontramos en el form, buscar globalmente
+			if username_candidate is None:
+				global_xps = [
+					"//input[@type='text']",
+					"//input[@type='email']",
+					"//input[contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'user')]",
+					"//input[contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'username')]",
+					"//input[contains(translate(@id,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'user')]",
+					"//input[contains(translate(@id,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'username')]",
+					"//input[contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'email')]",
+				]
+				for xp in global_xps:
+					try:
+						el = driver.find_elements(By.XPATH, xp)
+						if el:
+							# elegir el primero visible/enable
+							username_candidate = el[0]
+							break
+					except Exception:
+						continue
+
+			if username_candidate is None:
+				raise RuntimeError("LOGIN_REQUIRED: no se encontró campo de usuario automáticamente")
+
+			# escribir credenciales
+			try:
+				username_candidate.clear()
+				username_candidate.send_keys(username)
+			except Exception:
+				pass
+
+			try:
+				pwd = pwd_inputs[0]
+				pwd.clear()
+				pwd.send_keys(password)
+			except Exception:
+				raise RuntimeError("LOGIN_FAILED: no se pudo escribir la contraseña")
+
+			# intentar submit: buscar botón dentro del form, si existe
+			submitted = False
+			try:
+				if form is not None:
+					btns = form.find_elements(By.XPATH, ".//button[@type='submit'] | .//input[@type='submit']")
+					if btns:
+						try:
+							btns[0].click()
+							submitted = True
+						except Exception:
+							pass
+			except Exception:
+				pass
+
+			if not submitted:
+				# fallback: enviar ENTER en el campo password
+				try:
+					pwd_inputs[0].send_keys(Keys.ENTER)
+					submitted = True
+				except Exception:
+					pass
+
+			# esperar a cambio de URL o readyState
+			try:
+				original_url = driver.current_url
+				WebDriverWait(driver, min(timeout, 20)).until(
+					lambda d: d.current_url != original_url or d.execute_script("return document.readyState") == "complete"
+				)
+			except Exception:
+				# tolerar tiempo de espera; continuamos
+				pass
+
+		# intentar login si detectamos formulario de password
+		try:
+			_attempt_login_if_needed()
+		except Exception as e:
+			return {"error": str(e)}
 
 		# Esperar hasta que document.readyState sea 'complete' o hasta timeout
 		try:
