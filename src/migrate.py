@@ -259,6 +259,191 @@ def click_first_ver_mas_and_capture(driver, timeout: int = 30, out_path: str = "
 	except Exception as e:
 		return f"<ERROR: {e}>"
 
+# forward stubs to satisfy static analyzers; actual implementations follow later in the file
+def extract_client_info(driver):
+    raise NotImplementedError()
+
+def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows: int | None = None, timeout: int = 30):
+	"""Recorre todas las filas de la tabla principal, abre cada detalle (clic en Ver más),
+	extrae la información del cliente y la agrega a out_path.
+
+	Deduplicamos por `codigo_venta` cuando esté disponible.
+	"""
+	clients = []
+	seen_codes = set()
+
+	# cargar existentes si hay
+	try:
+		if os.path.exists(out_path):
+			with open(out_path, "r", encoding="utf-8") as fh:
+				existing = json.load(fh)
+				for c in existing:
+					clients.append(c)
+					if c.get('codigo_venta'):
+						seen_codes.add(c.get('codigo_venta'))
+	except Exception:
+		# ignorar errores de carga
+		pass
+
+	# localizar tabla y filas
+	table = detect_main_table(driver)
+	if table is None:
+		print("No se encontró tabla para iterar filas")
+		return clients
+
+	# contar filas con celdas
+	try:
+		rows = driver.find_elements(By.XPATH, "//table//tr[td]")
+	except Exception:
+		rows = []
+
+	total = len(rows)
+	if max_rows is not None:
+		total = min(total, max_rows)
+
+	print(f"Found {len(rows)} data rows; extracting up to {total}")
+
+	for i in range(total):
+		try:
+			# re-evaluar filas cada iteración para evitar StaleElementReference
+			rows = driver.find_elements(By.XPATH, "//table//tr[td]")
+			if i >= len(rows):
+				break
+			row = rows[i]
+
+			# localizar el elemento 'Ver más' en la última celda
+			try:
+				last_td = row.find_element(By.XPATH, "./td[last()]")
+			except Exception:
+				continue
+
+			el = None
+			try:
+				el = last_td.find_element(By.XPATH, ".//button[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'ver m') or contains(.,'Ver m')]")
+			except Exception:
+				try:
+					candidates = last_td.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
+					if candidates:
+						el = candidates[0]
+				except Exception:
+					el = None
+
+			if el is None:
+				# nada para clicar en esta fila
+				continue
+
+			# click y esperar navegación/actualización
+			try:
+				driver.execute_script('arguments[0].scrollIntoView(true);', el)
+				driver.execute_script('arguments[0].click();', el)
+			except Exception:
+				try:
+					el.click()
+				except Exception:
+					print(f"No se pudo clickear Ver más en fila {i}")
+					continue
+
+			# esperar la carga
+			try:
+				WebDriverWait(driver, timeout).until(lambda d: d.execute_script("return document.readyState") == "complete")
+			except Exception:
+				time.sleep(0.8)
+
+			# intentar cerrar modales rápidos (misma heurística que antes)
+			try:
+				close_xpaths = [
+					"//button[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cerrar')]",
+					"//button[contains(@class,'close')]",
+					"//a[contains(@class,'close')]",
+					"//button[@aria-label='Close' or @aria-label='close']",
+				]
+				for xp in close_xpaths:
+					btns = driver.find_elements(By.XPATH, xp)
+					if btns:
+						try:
+							driver.execute_script('arguments[0].click();', btns[0])
+							time.sleep(0.2)
+							break
+						except Exception:
+							continue
+			except Exception:
+				pass
+
+			# intentar activar la pestaña 'Cliente'
+			try:
+				tab_xpaths = [
+					"//a[normalize-space(.)='Cliente']",
+					"//button[normalize-space(.)='Cliente']",
+					"//*[@role='tab' and contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cliente')]",
+					"//ul[contains(@class,'nav') or contains(@class,'tabs')]//a[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cliente')]",
+				]
+				clicked_tab = False
+				for xp in tab_xpaths:
+					els = driver.find_elements(By.XPATH, xp)
+					if not els:
+						continue
+					for el_tab in els:
+						try:
+							driver.execute_script('arguments[0].scrollIntoView({block:"center",inline:"nearest"});', el_tab)
+							driver.execute_script('arguments[0].click();', el_tab)
+							clicked_tab = True
+							time.sleep(0.2)
+							break
+						except Exception:
+							continue
+					if clicked_tab:
+						break
+			except Exception:
+				pass
+
+			# extraer cliente
+			try:
+				client = extract_client_info(driver)
+			except Exception as e:
+				print(f"Error extrayendo cliente en fila {i}: {e}")
+				client = {}
+
+			code = client.get('codigo_venta') or client.get('codigo') or ''
+			if code and code in seen_codes:
+				print(f"Skipping duplicate codigo_venta {code}")
+			else:
+				clients.append(client)
+				if code:
+					seen_codes.add(code)
+				# escribir incrementalmente
+				try:
+					dirname = os.path.dirname(out_path)
+					if dirname and not os.path.exists(dirname):
+						os.makedirs(dirname, exist_ok=True)
+					with open(out_path, 'w', encoding='utf-8') as fh:
+						json.dump(clients, fh, ensure_ascii=False, indent=2)
+				except Exception as e:
+					print('Warning: could not write clients file:', e)
+
+			# volver atrás a la tabla (si la navegación fue en la misma pestaña)
+			try:
+				driver.back()
+				# esperar que la tabla reaparezca
+				WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
+				time.sleep(0.4)
+			except Exception:
+				# como fallback, recargar la URL inicial si existe en .env
+				try:
+					url = os.getenv('SOURCE_PAGE_URL')
+					if url:
+						driver.get(url)
+						WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
+						time.sleep(0.6)
+				except Exception:
+					pass
+
+		except Exception as e:
+			print(f"Warning: fila {i} fallo: {e}")
+			continue
+
+	print(f"Extraction finished: {len(clients)} clients (including pre-existing)")
+	return clients
+
 
 
 
@@ -677,35 +862,12 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 		except Exception as e:
 			print("Warning: could not dump table html:", e)
 
-		# Intentar clicar el primer 'Ver más' y capturar la página destino
+		# Extraer clientes para todas las filas de la tabla
 		try:
-			detail_preview = click_first_ver_mas_and_capture(driver, timeout=timeout, out_path="output/detail.html")
-			print("Detail page saved to output/detail.html (first 4000 chars or status):\n")
-			print(detail_preview)
-			# Extraer información del cliente desde la página ya cargada y guardar como JSON
-			try:
-				client = extract_client_info(driver)
-				# preparar directorio
-				outdir = os.path.dirname("output/clients.json") or "output"
-				if outdir and not os.path.exists(outdir):
-					os.makedirs(outdir, exist_ok=True)
-				clients_path = os.path.join(outdir, "clients.json")
-				clients_list = []
-				# si existe, cargar y añadir
-				if os.path.exists(clients_path):
-					try:
-						with open(clients_path, "r", encoding="utf-8") as fh:
-							clients_list = json.load(fh)
-					except Exception:
-						clients_list = []
-				clients_list.append(client)
-				with open(clients_path, "w", encoding="utf-8") as fh:
-					json.dump(clients_list, fh, ensure_ascii=False, indent=2)
-				print(f"Client data written to {clients_path} (keys: {list(client.keys())})")
-			except Exception as e:
-				print("Warning: could not extract or write client info:", e)
+			clients = extract_all_clients(driver, out_path="output/clients.json", max_rows=None, timeout=timeout)
+			print(f"Extracted {len(clients)} clients (saved to output/clients.json)")
 		except Exception as e:
-			print("Warning: could not click first 'Ver más' and capture:", e)
+			print("Warning: could not extract clients from all rows:", e)
 
 		html = driver.page_source
 
