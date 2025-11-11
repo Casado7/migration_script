@@ -279,9 +279,9 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 			with open(out_path, "r", encoding="utf-8") as fh:
 				existing = json.load(fh)
 				for c in existing:
+					# preserve previously extracted clients but do NOT mark their codes as seen
+					# to allow duplicates to be collected in a fresh run
 					clients.append(c)
-					if c.get('codigo_venta'):
-						seen_codes.add(c.get('codigo_venta'))
 	except Exception:
 		# ignorar errores de carga
 		pass
@@ -339,13 +339,8 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 			except Exception:
 				code_from_row = ""
 
-			# si ya vimos este codigo, saltar (preserva orden de filas únicas)
-			if code_from_row and code_from_row in seen_codes:
-				# skip without clicking to preserve table order
-				msg = f"Skipping row {i}: duplicate code_from_row {code_from_row}"
-				print(msg)
-				skipped_rows.append({"row_index": i, "reason": "duplicate_code_in_existing", "codigo_venta": code_from_row})
-				continue
+			# do not skip rows based on previously seen codes; allow duplicates
+			# (we still attempt to read code_from_row for diagnostics)
 
 			el = None
 			try:
@@ -497,26 +492,19 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
 
 			code = client.get('codigo_venta') or client.get('codigo') or ''
-			if code and code in seen_codes:
-				print(f"Skipping duplicate codigo_venta {code}")
-				# record duplicates found after extraction
-				try:
-					skipped_rows.append({"row_index": i, "reason": "duplicate_after_extraction", "codigo_venta": code})
-				except Exception:
-					pass
-			else:
-				clients.append(client)
-				if code:
-					seen_codes.add(code)
-				# escribir incrementalmente
-				try:
-					dirname = os.path.dirname(out_path)
-					if dirname and not os.path.exists(dirname):
-						os.makedirs(dirname, exist_ok=True)
-					with open(out_path, 'w', encoding='utf-8') as fh:
-						json.dump(clients, fh, ensure_ascii=False, indent=2)
-				except Exception as e:
-					print('Warning: could not write clients file:', e)
+			# always append the extracted client (allow duplicates)
+			clients.append(client)
+			if code:
+				seen_codes.add(code)
+			# escribir incrementalmente
+			try:
+				dirname = os.path.dirname(out_path)
+				if dirname and not os.path.exists(dirname):
+					os.makedirs(dirname, exist_ok=True)
+				with open(out_path, 'w', encoding='utf-8') as fh:
+					json.dump(clients, fh, ensure_ascii=False, indent=2)
+			except Exception as e:
+				print('Warning: could not write clients file:', e)
 
 			# cerrar ventana nueva si abrimos una y volver a la original
 			try:
