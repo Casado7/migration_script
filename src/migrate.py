@@ -36,11 +36,13 @@ def _resolve_output_path(path: str) -> str:
 	return os.path.join(repo_root, path.replace('/', os.sep).replace('\\', os.sep))
 
 
-def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows: int | None = None, timeout: int = 30):
+def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows: int | None = None, max_pages: int | None = None, timeout: int = 30):
 	"""Recorre todas las filas de la tabla principal, abre cada detalle (clic en Ver más),
 	extrae la información del cliente y la agrega a out_path.
 
 	Deduplicamos por `codigo_venta` cuando esté disponible.
+
+	max_pages: si no es None, limita el número de páginas a recorrer (1 = solo la primera página).
 	"""
 	# ensure out_path is absolute and points to repo-root/output
 	out_path = _resolve_output_path(out_path)
@@ -62,31 +64,39 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 		# ignorar errores de carga
 		pass
 
-	# localizar tabla y filas
+	# localizar tabla
 	table = detect_main_table(driver)
 	if table is None:
 		print("No se encontró tabla para iterar filas")
 		return clients
 
-	# contar filas con celdas
-	try:
-		rows = driver.find_elements(By.XPATH, "//table//tr[td]")
-	except Exception:
-		rows = []
-
-	total = len(rows)
-	if max_rows is not None:
-		total = min(total, max_rows)
-
-	print(f"Found {len(rows)} data rows; extracting up to {total}")
-
-	for i in range(total):
+	processed = 0
+	page_index = 1
+	# loop over pages until no next page
+	while True:
 		try:
-			# re-evaluar filas cada iteración para evitar StaleElementReference
 			rows = driver.find_elements(By.XPATH, "//table//tr[td]")
-			if i >= len(rows):
-				break
-			row = rows[i]
+		except Exception:
+			rows = []
+
+		total_in_page = len(rows)
+		# compute remaining allowed if max_rows provided
+		remaining = None if max_rows is None else max(0, max_rows - processed)
+		to_process = total_in_page if remaining is None else min(total_in_page, remaining)
+
+		print(f"Found {total_in_page} data rows on page {page_index}; extracting up to {to_process} this page")
+
+		for i in range(to_process):
+			try:
+				# re-evaluar filas cada iteración para evitar StaleElementReference
+				rows = driver.find_elements(By.XPATH, "//table//tr[td]")
+				if i >= len(rows):
+					break
+				row = rows[i]
+			except Exception as e:
+				# si no podemos acceder a las filas, saltar esta iteración
+				print(f"Warning: no se pudo acceder a la fila {i} en la página {page_index}: {e}")
+				continue
 			# localizar la última celda y tratar de obtener codigo_venta desde la fila
 			try:
 				last_td = row.find_element(By.XPATH, "./td[last()]")
@@ -328,9 +338,28 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				except Exception:
 					pass
 
-		except Exception as e:
-			print(f"Warning: fila {i} fallo: {e}")
-			continue
+				except Exception as e:
+					print(f"Warning: fila {i} fallo: {e}")
+					continue
+
+
+        # finished rows on this page (or reached max_rows)
+		processed = len(clients)
+		# if max_rows limit reached, stop pagination
+		if max_rows is not None and processed >= max_rows:
+			break
+
+		# if max_pages limit reached, stop pagination
+		if max_pages is not None and page_index >= max_pages:
+			break
+
+		# intentar navegar a la siguiente página
+		moved = go_to_next_page(driver, timeout=timeout)
+		if not moved:
+			break
+		# permitir que la nueva página cargue
+		time.sleep(0.6)
+		page_index += 1
 
 	print(f"Extraction finished: {len(clients)} clients (including pre-existing)")
 	# escribir diagnóstico de filas saltadas para inspección
@@ -494,6 +523,76 @@ def detect_main_table(driver):
 		except Exception:
 			continue
 	return None
+
+
+def _get_active_page_number(driver):
+	"""Return the current active page number from the pagination, or None if not found."""
+	try:
+		el = driver.find_element(By.XPATH, "//li[contains(@class,'page-item') and contains(@class,'active')]//a[contains(@class,'Pagina') or contains(@class,'page-link')]")
+		val = el.get_attribute('data-valor') or el.text
+		val = (val or '').strip()
+		return int(val)
+	except Exception:
+		return None
+
+
+def go_to_next_page(driver, timeout: int = 8) -> bool:
+	"""Try to navigate to the next page of the table.
+
+	Returns True if navigation to a different page was performed, False if there is no next page.
+	"""
+	try:
+		prev = _get_active_page_number(driver)
+		# prefer clicking the next numeric page (current + 1)
+		if prev is not None:
+			target = prev + 1
+			try:
+				xpath = f"//a[contains(@class,'Pagina') and (@data-valor='{target}' or normalize-space(.)='{target}') ]"
+				el = driver.find_element(By.XPATH, xpath)
+				# skip if element appears disabled
+				cls = (el.get_attribute('class') or '')
+				if 'disabled' in cls or 'cursor-cancel' in cls:
+					raise Exception('page link disabled')
+				driver.execute_script('arguments[0].scrollIntoView(true);', el)
+				driver.execute_script('arguments[0].click();', el)
+				WebDriverWait(driver, timeout).until(lambda d: _get_active_page_number(d) != prev)
+				print(f"Navigated to page {target}")
+				return True
+			except Exception:
+				# fallback to use the 'siguiente' control
+				pass
+
+		# try 'siguiente' control (data-accion='siguiente') if numeric next not found
+		try:
+			next_btn = driver.find_element(By.XPATH, "//a[contains(@class,'page-link') and @data-accion='siguiente']")
+			cls = (next_btn.get_attribute('class') or '')
+			if 'cursor-cancel' in cls:
+				return False
+			driver.execute_script('arguments[0].scrollIntoView(true);', next_btn)
+			driver.execute_script('arguments[0].click();', next_btn)
+			WebDriverWait(driver, timeout).until(lambda d: _get_active_page_number(d) != prev)
+			print("Clicked 'siguiente' pagination control")
+			return True
+		except Exception:
+			pass
+
+		# try jump-control to next block (a10sig)
+		try:
+			a10 = driver.find_element(By.XPATH, "//a[contains(@class,'page-link') and @data-accion='a10sig']")
+			cls = (a10.get_attribute('class') or '')
+			if 'cursor-cancel' in cls:
+				return False
+			driver.execute_script('arguments[0].scrollIntoView(true);', a10)
+			driver.execute_script('arguments[0].click();', a10)
+			WebDriverWait(driver, timeout).until(lambda d: _get_active_page_number(d) != prev)
+			print("Clicked 'a10sig' pagination control (next block)")
+			return True
+		except Exception:
+			pass
+
+		return False
+	except Exception:
+		return False
 
 
 def dump_table_html(driver, out_path: str = "output/table.html") -> str:
@@ -763,7 +862,8 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 
 		# Extraer clientes para todas las filas de la tabla
 		try:
-			clients = extract_all_clients(driver, out_path="output/clients.json", max_rows=None, timeout=timeout)
+			# limit pages to 2 for initial testing to avoid scraping everything
+			clients = extract_all_clients(driver, out_path="output/clients.json", max_rows=None, max_pages=2, timeout=timeout)
 			print(f"Extracted {len(clients)} clients (saved to output/clients.json)")
 		except Exception as e:
 			print("Warning: could not extract clients from all rows:", e)
