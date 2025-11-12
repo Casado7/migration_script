@@ -1,267 +1,40 @@
-"""migrate.py
-
-Utilidad mínima para abrir la URL definida en .env (SOURCE_PAGE_URL)
-usando Selenium. Devuelve título y HTML (parcial) como comprobación.
-
-Uso:
-	python src/migrate.py
-
-Requisitos: selenium, python-dotenv
-"""
 from __future__ import annotations
-
 import os
 import sys
 import time
 import json
 from typing import Dict, Any
 import re
-
 from dotenv import load_dotenv
-
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-
 from selenium.common.exceptions import WebDriverException, TimeoutException, NoSuchElementException
 from selenium.common.exceptions import StaleElementReferenceException
 
 
-def expand_view_more_in_table(driver, timeout: int = 30) -> None:
-	"""Recorre filas de tablas y hace click en botones/enlaces "Ver más" dentro de cada fila.
+# Helpers to make output paths deterministic (always under repo root/output)
+def _get_repo_root() -> str:
+	# file is src/migrate.py -> repo root is parent of src
+	return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-	La función usa heurísticas para encontrar los elementos y intenta cerrar modales
-	(enviando ESC) después de abrirlos para continuar con la siguiente fila.
+
+def _resolve_output_path(path: str) -> str:
+	"""Return an absolute path inside the repository for a given relative output path.
+
+	If `path` is absolute, returns it unchanged. If relative, it's joined to the repo root.
+	This ensures all output files go to <repo_root>/output/... regardless of CWD.
 	"""
-	# Buscar filas en tablas
-	rows = driver.find_elements(By.XPATH, "//table//tr")
-	if not rows:
-		# intentar buscar contenedores con clase 'tabla' o 'tabla-ventas'
-		rows = driver.find_elements(By.XPATH, "//*[contains(@class,'tabla') or contains(@class,'table')]//tr")
-		if not rows:
-			return
+	if not path:
+		return path
+	if os.path.isabs(path):
+		return path
+	# normalize slashes and join to repo root
+	repo_root = _get_repo_root()
+	return os.path.join(repo_root, path.replace('/', os.sep).replace('\\', os.sep))
 
-	for i, row in enumerate(rows):
-		# obtener botones/enlaces dentro de la fila
-		try:
-			candidates = row.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
-		except StaleElementReferenceException:
-			continue
-
-		for el in candidates:
-			# obtener texto (manejar elementos input)
-			try:
-				text = (el.text or el.get_attribute('value') or '').strip()
-			except StaleElementReferenceException:
-				continue
-
-			if not text:
-				continue
-
-			# normalizar y buscar 'ver mas' (sin acento)
-			text_norm = text.lower()
-			text_norm = text_norm.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
-
-			if re.search(r"\bver\s*mas\b", text_norm):
-				# intentar click y manejo simple de modal
-				try:
-					driver.execute_script('arguments[0].scrollIntoView(true);', el)
-					el.click()
-					time.sleep(0.8)
-					# intentar cerrar modal o enviar ESC
-					try:
-						close_btns = driver.find_elements(By.XPATH, "//button[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cerrar')] | //button[contains(@class,'close')] | //a[contains(@class,'close')]")
-						if close_btns:
-							close_btns[0].click()
-						else:
-							body = driver.find_element(By.TAG_NAME, 'body')
-							body.send_keys(Keys.ESCAPE)
-						time.sleep(0.3)
-					except Exception:
-						# ignorar errores al cerrar modal
-						pass
-				except Exception:
-					# ignorar errores en click y seguir
-					pass
-
-				# dar un pequeño retardo para evitar acciones demasiado rápidas
-				time.sleep(0.2)
-
-
-def click_first_ver_mas_in_last_column(driver, timeout: int = 30) -> bool:
-	"""Click en el primer botón/enlace dentro de la última columna de la primera fila de datos.
-
-	Retorna True si realizó el click, False si no encontró el elemento.
-	"""
-	# seleccionar filas que contienen celdas (evitar encabezados)
-	rows = driver.find_elements(By.XPATH, "//table//tr[td]")
-	if not rows:
-		return False
-
-	first_row = rows[0]
-	# obtener la última celda
-	try:
-		cells = first_row.find_elements(By.XPATH, "./td")
-		if not cells:
-			return False
-		last_td = cells[-1]
-		# intentar buscar específicamente el botón 'Ver más' dentro de la última celda
-		try:
-			el = last_td.find_element(By.XPATH, ".//button[contains(.,'Ver más') or contains(.,'Ver mas') or contains(.,'ver mas') or contains(.,'VER MAS')]")
-		except Exception:
-			# fallback: buscar el primer elemento clickeable dentro
-			candidates = last_td.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
-			if not candidates:
-				return False
-			el = candidates[0]
-		# click seguro
-		driver.execute_script('arguments[0].scrollIntoView(true);', el)
-		el.click()
-		time.sleep(0.8)
-		return True
-	except StaleElementReferenceException:
-		return False
-	except Exception:
-		return False
-
-def click_first_ver_mas_and_capture(driver, timeout: int = 30, out_path: str = "output/detail.html") -> str:
-	"""Clica el primer 'Ver más' en la última columna de la primera fila y captura la página destino.
-
-	Devuelve un preview del HTML destino (primeros 4000 chars) o '<NO_NAV>' si no navegó.
-	"""
-	current = None
-	try:
-		current = driver.current_url
-		# Intentar un selector XPath directo a la primera fila, última celda, botón 'Ver más'
-		direct_xpath = "(//table//tr[td])[1]/td[last()]//button[contains(normalize-space(.),'Ver m') or contains(normalize-space(.),'Ver más') or contains(normalize-space(.),'Ver mas')]"
-		try:
-			elem = driver.find_element(By.XPATH, direct_xpath)
-			elem.click()
-			success = True
-		except Exception:
-			# fallback a la heurística anterior
-			success = click_first_ver_mas_in_last_column(driver, timeout=timeout)
-		if not success:
-			return "<NO_CLICK>"
-		# esperar cambio de URL o carga
-		try:
-			WebDriverWait(driver, timeout).until(lambda d: d.current_url != current)
-		except Exception:
-			# si no cambió URL, esperar un poco más por la navegación completa
-			time.sleep(1)
-		# intentar cerrar modal(s) comunes en la página destino antes de guardar
-		try:
-			# lista de XPaths comunes para botones de cerrar (español/ingles)
-			close_xpaths = [
-				"//button[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cerrar')]",
-				"//button[contains(@class,'close')]",
-				"//a[contains(@class,'close')]",
-				"//button[@aria-label='Close' or @aria-label='close']",
-				"//button[contains(.,'\u00d7') or contains(.,'×') or normalize-space(.)='x']",
-				"//*[contains(@class,'modal') or contains(@class,'dialog')]//button[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cerrar') or contains(@class,'close')]",
-			]
-			clicked = False
-			for xp in close_xpaths:
-				btns = driver.find_elements(By.XPATH, xp)
-				for b in btns:
-					try:
-						driver.execute_script('arguments[0].scrollIntoView(true);', b)
-						b.click()
-						clicked = True
-						time.sleep(0.4)
-						break
-					except Exception:
-						# ignorar errores al clicar este botón y probar siguiente
-						continue
-				if clicked:
-					break
-			# si no encontramos botón, intentar enviar ESC
-			if not clicked:
-				try:
-					body = driver.find_element(By.TAG_NAME, 'body')
-					body.send_keys(Keys.ESCAPE)
-					time.sleep(0.3)
-				except Exception:
-					pass
-		except Exception:
-			# ignorar cualquier fallo en el intento de cerrar modal
-			pass
-
-		# intentar clicar la pestaña 'Cliente' si está presente (después de cerrar modales)
-		try:
-			clicked_tab = False
-			# XPaths comunes para la pestaña 'Cliente'
-			tab_xpaths = [
-				"//a[normalize-space(.)='Cliente']",
-				"//button[normalize-space(.)='Cliente']",
-				"//li[normalize-space(.)='Cliente']",
-				"//a[contains(normalize-space(.),'Cliente')]",
-				"//button[contains(normalize-space(.),'Cliente')]",
-				"//*[@role='tab' and contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cliente')]",
-				"//ul[contains(@class,'nav') or contains(@class,'tabs')]//a[contains(translate(.,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cliente')]",
-			]
-			for xp in tab_xpaths:
-				els = driver.find_elements(By.XPATH, xp)
-				if els:
-					for el in els:
-						try:
-							# asegurar visible / scrollear
-							driver.execute_script('arguments[0].scrollIntoView({block:"center",inline:"nearest"});', el)
-							# usar click vía JS para disparar handlers ligados por jQuery/bootstrap
-							driver.execute_script('arguments[0].click();', el)
-							# si hay función tab_seleccionado, llamarla como fallback
-							try:
-								driver.execute_script("if(typeof tab_seleccionado === 'function'){ tab_seleccionado(1,'cliente'); }")
-							except Exception:
-								pass
-							clicked_tab = True
-							# esperar hasta que el enlace tenga la clase 'active' (Bootstrap) o hasta timeout corto
-							try:
-								WebDriverWait(driver, 3).until(
-									lambda d, el=el: 'active' in (d.execute_script('return arguments[0].className;', el) or '')
-								)
-							except Exception:
-								# fallback: intentar llamar a la función JS que activa pestañas si existe
-								try:
-									driver.execute_script("if(typeof tab_seleccionado === 'function'){ tab_seleccionado(1,'cliente'); }")
-									# esperar un poquito tras la invocación
-									WebDriverWait(driver, 3).until(lambda d: 'active' in (d.find_element(By.ID, 'cliente').get_attribute('class') or ''))
-								except Exception:
-									pass
-							time.sleep(0.2)
-						except Exception:
-							# ignorar fallos y seguir probando otras coincidencias
-							continue
-				if clicked_tab:
-					break
-			if clicked_tab:
-				# esperar por la carga si hubo navegación parcial
-				try:
-					WebDriverWait(driver, min(timeout, 10)).until(lambda d: d.execute_script("return document.readyState") == "complete")
-				except Exception:
-					time.sleep(0.5)
-		except Exception:
-			# ignorar cualquier fallo al intentar clicar la pestaña
-			pass
-
-		# ahora guardar page_source
-		html = driver.page_source
-		# asegurar directorio
-		import os as _os
-		dirname = _os.path.dirname(out_path)
-		if dirname and not _os.path.exists(dirname):
-			_os.makedirs(dirname, exist_ok=True)
-		with open(out_path, "w", encoding="utf-8") as fh:
-			fh.write(html)
-		return html[:4000]
-	except Exception as e:
-		return f"<ERROR: {e}>"
-
-# forward stubs to satisfy static analyzers; actual implementations follow later in the file
-def extract_client_info(driver):
-    raise NotImplementedError()
 
 def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows: int | None = None, timeout: int = 30):
 	"""Recorre todas las filas de la tabla principal, abre cada detalle (clic en Ver más),
@@ -269,6 +42,9 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 
 	Deduplicamos por `codigo_venta` cuando esté disponible.
 	"""
+	# ensure out_path is absolute and points to repo-root/output
+	out_path = _resolve_output_path(out_path)
+
 	clients = []
 	seen_codes = set()
 	skipped_rows = []  # collect diagnostics about skipped rows
@@ -570,8 +346,6 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 	return clients
 
 
-
-
 def extract_client_info(driver):
 	"""Extrae la información del cliente desde la pestaña 'Cliente' en la página de detalle.
 
@@ -731,11 +505,11 @@ def dump_table_html(driver, out_path: str = "output/table.html") -> str:
 		return "<NO_TABLE_FOUND>"
 
 	html = table.get_attribute("outerHTML")
-	# asegurar directorio
-	import os as _os
-	dirname = _os.path.dirname(out_path)
-	if dirname and not _os.path.exists(dirname):
-		_os.makedirs(dirname, exist_ok=True)
+	# resolve to repo-rooted output path and ensure directory exists
+	out_path = _resolve_output_path(out_path)
+	dirname = os.path.dirname(out_path)
+	if dirname and not os.path.exists(dirname):
+		os.makedirs(dirname, exist_ok=True)
 
 	with open(out_path, "w", encoding="utf-8") as fh:
 		fh.write(html)
