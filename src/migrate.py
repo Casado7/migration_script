@@ -64,7 +64,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 					# si es un dict que parece cliente (tiene 'name' o 'id_cliente'), envolver
 					if isinstance(item, dict):
 						if 'name' in item or 'id_cliente' in item or 'codigo_venta' in item:
-							clients.append({'row': {}, 'cliente': item})
+							clients.append({'row': {}, 'cliente': item, 'info_credito': {}})
 							continue
 					# otherwise, append as-is
 					clients.append(item)
@@ -183,7 +183,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 					client = {k: "" for k in ("name","birth_date","rfc","curp","sexo","estado_civil","telefono_local","telefono_celular","email","id_cliente","codigo_venta")}
 					client['codigo_venta'] = code_from_row
 					# append as wrapped object with row info
-					clients.append({'row': col_map or {'html': row_html}, 'cliente': client})
+					clients.append({'row': col_map or {'html': row_html}, 'cliente': client, 'info_credito': {}})
 					seen_codes.add(code_from_row)
 					try:
 						dirname = os.path.dirname(out_path)
@@ -272,6 +272,14 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				pass
 
 			# intentar activar la pestaña 'Cliente'
+			# extraer la sección 'Información del Crédito' antes de cambiar a la pestaña Cliente
+			credit_info = {}
+			try:
+				credit_info = extract_credit_info(driver)
+			except Exception:
+				credit_info = {}
+
+			# intentar activar la pestaña 'Cliente'
 			try:
 				tab_xpaths = [
 					"//a[normalize-space(.)='Cliente']",
@@ -311,8 +319,8 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
 
 			code = client.get('codigo_venta') or client.get('codigo') or ''
-			# always append the extracted client (allow duplicates)
-			clients.append({'row': col_map or {}, 'cliente': client})
+			# always append the extracted client (allow duplicates) including credit info
+			clients.append({'row': col_map or {}, 'cliente': client, 'info_credito': credit_info})
 			if code:
 				seen_codes.add(code)
 			# escribir incrementalmente
@@ -535,6 +543,53 @@ def extract_client_info(driver):
 			pass
 
 	return result
+
+
+def extract_credit_info(driver):
+	"""Extrae la sección 'Información del Crédito' (primer tab) y devuelve un diccionario.
+	Busca el contenedor que contiene el texto 'Información del Crédito' y parsea filas
+	formateando la etiqueta en mayúsculas como clave y el valor como string.
+	"""
+	try:
+		# localizar bloque principal por el título visible
+		xp = "//div[contains(normalize-space(.), 'Información del Crédito')]/ancestor::div[contains(@class,'form-layout')][1]"
+		blk = driver.find_element(By.XPATH, xp)
+	except Exception:
+		# fallback: buscar por clase 'form-layout' que contenga 'Desarrollo' o 'Precio Venta'
+		try:
+			blk = driver.find_element(By.XPATH, "//div[contains(@class,'form-layout') and .//div[contains(., 'Desarrollo')]]")
+		except Exception:
+			return {}
+
+	info = {}
+	# cada fila suele ser un div.row no-gutters con varias columnas
+	try:
+		rows = blk.find_elements(By.XPATH, ".//div[contains(@class,'row') and contains(@class,'no-gutters')]")
+	except Exception:
+		return info
+
+	for r in rows:
+		try:
+			# recoger textos de columnas relevantes
+			cols = r.find_elements(By.XPATH, "./div")
+			texts = [c.text.strip() for c in cols if (c.text or '').strip()]
+			if not texts:
+				continue
+			# ignorar filas que sean solo botones/acciones
+			# identificar etiqueta = primer texto y valor = resto
+			if len(texts) == 1:
+				# a veces la fila contiene solo un título como 'Información del Crédito'
+				continue
+			label = texts[0]
+			value = " ".join(texts[1:]).strip()
+			# normalizar clave: mayúsculas y espacios simples
+			key = re.sub(r"\s+"," ", label).strip().upper()
+			info[key] = value
+		except Exception:
+			# si algo falla procesando esta fila, continuar con la siguiente
+			continue
+
+	return info
 
 
 def detect_main_table(driver):
