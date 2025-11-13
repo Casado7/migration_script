@@ -101,10 +101,10 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				print(f"Warning: no se pudo acceder a la fila {i} en la página {page_index}: {e}")
 				continue
 
-			# capturar HTML de la fila para incluirlo en el JSON (diagnóstico / referencia)
+			# capturar HTML de la fila y construir un mapeo de columnas (JSON)
 			row_html = ""
 			try:
-				# capture full outerHTML of the row (do not truncate)
+				# capture full outerHTML of the row
 				row_html = (row.get_attribute('outerHTML') or "")
 				# normalize whitespace so the HTML is stored in a single-line friendly format
 				try:
@@ -113,6 +113,41 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 					pass
 			except Exception:
 				row_html = ""
+
+			# construir mapeo de columnas usando los nombres provistos por el usuario
+			# Orden esperado proporcionado por el usuario:
+			canonical = [
+				"Temp.", "Sucursal", "Asesor", "Cliente", "Desarrollo", "Unidad",
+				"Fecha Venta", "Estado", "Plan", "Acciones", "Codigo Venta",
+			]
+			def _norm_key(s: str) -> str:
+				return re.sub(r"[^0-9a-z]+", "_", (s or '').strip().lower()).strip('_')
+			canonical_keys = [_norm_key(x) for x in canonical]
+
+			col_map = {}
+			try:
+				cells = row.find_elements(By.XPATH, "./td")
+				for idx, cell in enumerate(cells, start=1):
+					try:
+						val = cell.text.strip()
+					except Exception:
+						val = ""
+					if idx-1 < len(canonical_keys):
+						key = canonical_keys[idx-1]
+					else:
+						key = f"col_{idx}"
+					col_map[key] = val
+
+				# si existen inputs hidden importantes dentro de la fila, exponerlos al mapeo
+				try:
+					inp = row.find_element(By.XPATH, ".//input[@name='codigo_venta']")
+					cv = (inp.get_attribute('value') or '').strip()
+					if cv:
+						col_map.setdefault('codigo_venta', cv)
+				except Exception:
+					pass
+			except Exception:
+				col_map = {}
 			# localizar la última celda y tratar de obtener codigo_venta desde la fila
 			try:
 				last_td = row.find_element(By.XPATH, "./td[last()]")
@@ -170,7 +205,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				if code_from_row and code_from_row not in seen_codes:
 					client = {k: "" for k in ("name","birth_date","rfc","curp","sexo","estado_civil","telefono_local","telefono_celular","email","id_cliente","codigo_venta")}
 					client['codigo_venta'] = code_from_row
-					entry = {'row_html': row_html, 'cliente': client}
+					entry = {'row': col_map or {'html': row_html}, 'cliente': client}
 					clients.append(entry)
 					seen_codes.add(code_from_row)
 					try:
@@ -332,21 +367,21 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 						# fallback: recargar la página fuente
 						try:
 							url = os.getenv('SOURCE_PAGE_URL')
-							if url:
-								driver.get(url)
-								WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
-								time.sleep(0.6)
-						except Exception:
-							pass
-				else:
-					# navegación en la misma pestaña: intentar back
-					try:
-						driver.back()
-						WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
-						time.sleep(0.4)
-					except Exception:
-						try:
-							url = os.getenv('SOURCE_PAGE_URL')
+							try:
+								client = extract_client_info(driver)
+							except Exception as e:
+								print(f"Error extrayendo cliente en fila {i}: {e}")
+								client = {}
+								try:
+									row_html = (row.get_attribute('outerHTML') or "")
+								except Exception:
+									row_html = "<unable to get row html>"
+								skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
+
+							code = client.get('codigo_venta') or client.get('codigo') or ''
+							# always append the extracted client as an entry with parsed row (allow duplicates)
+							entry = {'row': col_map or {'html': row_html}, 'cliente': client}
+							clients.append(entry)
 							if url:
 								driver.get(url)
 								WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
