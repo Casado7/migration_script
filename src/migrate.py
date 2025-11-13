@@ -5,7 +5,6 @@ import time
 import json
 from typing import Dict, Any
 import re
-import html as _html
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -52,71 +51,25 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 	seen_codes = set()
 	skipped_rows = []  # collect diagnostics about skipped rows
 
-	# cargar existentes si hay y normalizarlos al nuevo esquema {'row': {...}, 'cliente': {...}}
-	def _parse_row_html_to_cols(row_html: str) -> dict:
-		try:
-			tds = re.findall(r'<td\b[^>]*>(.*?)</td>', row_html, flags=re.IGNORECASE | re.DOTALL)
-		except Exception:
-			return {}
-		canonical = [
-			"Temp.", "Sucursal", "Asesor", "Cliente", "Desarrollo", "Unidad",
-			"Fecha Venta", "Estado", "Plan", "Acciones", "Codigo Venta",
-		]
-		def _norm_key(s: str) -> str:
-			return re.sub(r"[^0-9a-z]+", "_", (s or '').strip().lower()).strip('_')
-		keys = [_norm_key(x) for x in canonical]
-		col_map = {}
-		for idx, td_html in enumerate(tds, start=1):
-			text = re.sub(r'<[^>]+>', '', td_html)
-			try:
-				text = _html.unescape(text).strip()
-			except Exception:
-				text = text.strip()
-			if idx-1 < len(keys):
-				key = keys[idx-1]
-			else:
-				key = f'col_{idx}'
-			col_map[key] = text
-		# fallback: look for hidden input codigo_venta
-		try:
-			m = re.search(r"<input[^>]+name=[\"']codigo_venta[\"'][^>]*value=[\"']([^\"']+)[\"']", row_html, flags=re.IGNORECASE)
-			if m:
-				col_map.setdefault('codigo_venta', m.group(1).strip())
-		except Exception:
-			pass
-		return col_map
-
+	# cargar existentes si hay y normalizarlas al nuevo esquema {'row': {...}, 'cliente': {...}}
 	try:
 		if os.path.exists(out_path):
 			with open(out_path, "r", encoding="utf-8") as fh:
 				existing = json.load(fh)
 				for item in existing:
-					# already new format
+					# si ya está en nuevo formato, conservar
 					if isinstance(item, dict) and 'row' in item and 'cliente' in item:
 						clients.append(item)
 						continue
-					# older format where row_html exists
-					if isinstance(item, dict) and 'row_html' in item and isinstance(item.get('cliente'), dict):
-						cols = _parse_row_html_to_cols(item.get('row_html') or '')
-						clients.append({'row': cols or {'html': item.get('row_html') or ''}, 'cliente': item.get('cliente')})
-						continue
-					# legacy: plain cliente dict (wrap)
-					if isinstance(item, dict) and 'cliente' not in item:
-						clients.append({'row': {}, 'cliente': item})
-						continue
-					# unknown shape: keep as-is but try to preserve
+					# si es un dict que parece cliente (tiene 'name' o 'id_cliente'), envolver
+					if isinstance(item, dict):
+						if 'name' in item or 'id_cliente' in item or 'codigo_venta' in item:
+							clients.append({'row': {}, 'cliente': item})
+							continue
+					# otherwise, append as-is
 					clients.append(item)
 	except Exception:
 		# ignorar errores de carga
-		pass
-	# Immediately persist normalized clients (remove any leftover row_html entries)
-	try:
-		dirname = os.path.dirname(out_path)
-		if dirname and not os.path.exists(dirname):
-			os.makedirs(dirname, exist_ok=True)
-		with open(out_path, 'w', encoding='utf-8') as fh:
-			json.dump(clients, fh, ensure_ascii=False, indent=2)
-	except Exception:
 		pass
 
 	# localizar tabla
@@ -153,51 +106,27 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				print(f"Warning: no se pudo acceder a la fila {i} en la página {page_index}: {e}")
 				continue
 
-			# capturar HTML de la fila y construir un mapeo de columnas (JSON)
-			row_html = ""
-			try:
-				# capture full outerHTML of the row
-				row_html = (row.get_attribute('outerHTML') or "")
-				# normalize whitespace so the HTML is stored in a single-line friendly format
-				try:
-					row_html = re.sub(r"\s+", " ", row_html).strip()
-				except Exception:
-					pass
-			except Exception:
-				row_html = ""
-
-			# construir mapeo de columnas usando los nombres provistos por el usuario
-			# Orden esperado proporcionado por el usuario:
-			canonical = [
-				"Temp.", "Sucursal", "Asesor", "Cliente", "Desarrollo", "Unidad",
-				"Fecha Venta", "Estado", "Plan", "Acciones", "Codigo Venta",
-			]
-			def _norm_key(s: str) -> str:
-				return re.sub(r"[^0-9a-z]+", "_", (s or '').strip().lower()).strip('_')
-			canonical_keys = [_norm_key(x) for x in canonical]
-
+			# construir mapeo de columnas para esta fila (usaremos el orden canónico)
 			col_map = {}
 			try:
+				canonical = [
+					"Temp.", "Sucursal", "Asesor", "Cliente", "Desarrollo", "Unidad",
+					"Fecha Venta", "Estado", "Plan", "Acciones", "Codigo Venta",
+				]
+				def _norm_key(s: str) -> str:
+					return re.sub(r"[^0-9a-z]+", "_", (s or '').strip().lower()).strip('_')
+				keys = [_norm_key(x) for x in canonical]
 				cells = row.find_elements(By.XPATH, "./td")
 				for idx, cell in enumerate(cells, start=1):
 					try:
 						val = cell.text.strip()
 					except Exception:
 						val = ""
-					if idx-1 < len(canonical_keys):
-						key = canonical_keys[idx-1]
+					if idx-1 < len(keys):
+						k = keys[idx-1]
 					else:
-						key = f"col_{idx}"
-					col_map[key] = val
-
-				# si existen inputs hidden importantes dentro de la fila, exponerlos al mapeo
-				try:
-					inp = row.find_element(By.XPATH, ".//input[@name='codigo_venta']")
-					cv = (inp.get_attribute('value') or '').strip()
-					if cv:
-						col_map.setdefault('codigo_venta', cv)
-				except Exception:
-					pass
+						k = f"col_{idx}"
+					col_map[k] = val
 			except Exception:
 				col_map = {}
 			# localizar la última celda y tratar de obtener codigo_venta desde la fila
@@ -246,19 +175,15 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				# nada para clicar en esta fila
 				row_html = ""
 				try:
-					row_html = (row.get_attribute('outerHTML') or "")
-					try:
-						row_html = re.sub(r"\s+", " ", row_html).strip()
-					except Exception:
-						pass
+					row_html = row.get_attribute('outerHTML')[:2000]
 				except Exception:
 					row_html = "<unable to get row html>"
 				# still, if code_from_row exists and not seen, add a placeholder client with only code
 				if code_from_row and code_from_row not in seen_codes:
 					client = {k: "" for k in ("name","birth_date","rfc","curp","sexo","estado_civil","telefono_local","telefono_celular","email","id_cliente","codigo_venta")}
 					client['codigo_venta'] = code_from_row
-					entry = {'row': col_map or {'html': row_html}, 'cliente': client}
-					clients.append(entry)
+					# append as wrapped object with row info
+					clients.append({'row': col_map or {'html': row_html}, 'cliente': client})
 					seen_codes.add(code_from_row)
 					try:
 						dirname = os.path.dirname(out_path)
@@ -380,19 +305,14 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				print(f"Error extrayendo cliente en fila {i}: {e}")
 				client = {}
 				try:
-					row_html = (row.get_attribute('outerHTML') or "")
-					try:
-						row_html = re.sub(r"\s+", " ", row_html).strip()
-					except Exception:
-						pass
+					row_html = row.get_attribute('outerHTML')[:2000]
 				except Exception:
 					row_html = "<unable to get row html>"
 				skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
 
 			code = client.get('codigo_venta') or client.get('codigo') or ''
-			# always append the extracted client as an entry with parsed row (allow duplicates)
-			entry = {'row': col_map or {'html': row_html}, 'cliente': client}
-			clients.append(entry)
+			# always append the extracted client (allow duplicates)
+			clients.append({'row': col_map or {}, 'cliente': client})
 			if code:
 				seen_codes.add(code)
 			# escribir incrementalmente
@@ -419,21 +339,21 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 						# fallback: recargar la página fuente
 						try:
 							url = os.getenv('SOURCE_PAGE_URL')
-							try:
-								client = extract_client_info(driver)
-							except Exception as e:
-								print(f"Error extrayendo cliente en fila {i}: {e}")
-								client = {}
-								try:
-									row_html = (row.get_attribute('outerHTML') or "")
-								except Exception:
-									row_html = "<unable to get row html>"
-								skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
-
-							code = client.get('codigo_venta') or client.get('codigo') or ''
-							# always append the extracted client as an entry with parsed row (allow duplicates)
-							entry = {'row': col_map or {'html': row_html}, 'cliente': client}
-							clients.append(entry)
+							if url:
+								driver.get(url)
+								WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
+								time.sleep(0.6)
+						except Exception:
+							pass
+				else:
+					# navegación en la misma pestaña: intentar back
+					try:
+						driver.back()
+						WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
+						time.sleep(0.4)
+					except Exception:
+						try:
+							url = os.getenv('SOURCE_PAGE_URL')
 							if url:
 								driver.get(url)
 								WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
