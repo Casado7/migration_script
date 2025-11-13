@@ -8,7 +8,7 @@ import re
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import WebDriverException, TimeoutException, NoSuchElementException
@@ -892,6 +892,38 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 			print("Table preview saved to output/table.html")
 		except Exception as e:
 			print("Warning: could not dump table html:", e)
+
+		# Intentar seleccionar el filtro 'Desarrollo' a la opción 'UKUUN'
+		try:
+			# primero intentar con el <select> real
+			try:
+				sel_el = driver.find_element(By.ID, "desarrollots")
+				# intentar seleccionar por texto visible
+				try:
+					Select(sel_el).select_by_visible_text("UKUUN")
+				except Exception:
+					# fallback a seleccionar por value (6 según el HTML suministrado)
+					try:
+						Select(sel_el).select_by_value("6")
+					except Exception:
+						# como último recurso, establecer value y disparar change via JS
+						driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change'));", sel_el, "6")
+				# también intentar actualizar el contenedor select2 si está presente
+				try:
+					driver.execute_script("var c=document.getElementById('select2-desarrollots-container'); if(c){c.textContent=arguments[0]; c.setAttribute('title', arguments[0]);}", "UKUUN")
+				except Exception:
+					pass
+				# esperar un poco a que la tabla se recargue
+				try:
+					WebDriverWait(driver, 5).until(lambda d: detect_main_table(d) is not None)
+					time.sleep(0.8)
+				except Exception:
+					time.sleep(1)
+				print("Selected 'UKUUN' in Desarrollo filter")
+			except Exception as e:
+				print("Warning: could not set Desarrollo filter to UKUUN:", e)
+		except Exception:
+			pass
 
 		# Extraer clientes para todas las filas de la tabla
 		try:
