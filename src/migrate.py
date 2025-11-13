@@ -56,10 +56,13 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 		if os.path.exists(out_path):
 			with open(out_path, "r", encoding="utf-8") as fh:
 				existing = json.load(fh)
-				for c in existing:
-					# preserve previously extracted clients but do NOT mark their codes as seen
-					# to allow duplicates to be collected in a fresh run
-					clients.append(c)
+				# Support both old format (list of client dicts) and new format
+				# where each item is {'row_html':..., 'cliente': {...}}
+				for item in existing:
+					if isinstance(item, dict) and 'cliente' in item:
+						clients.append(item)
+					else:
+						clients.append({'row_html': '', 'cliente': item})
 	except Exception:
 		# ignorar errores de carga
 		pass
@@ -97,6 +100,19 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				# si no podemos acceder a las filas, saltar esta iteración
 				print(f"Warning: no se pudo acceder a la fila {i} en la página {page_index}: {e}")
 				continue
+
+			# capturar HTML de la fila para incluirlo en el JSON (diagnóstico / referencia)
+			row_html = ""
+			try:
+				# capture full outerHTML of the row (do not truncate)
+				row_html = (row.get_attribute('outerHTML') or "")
+				# normalize whitespace so the HTML is stored in a single-line friendly format
+				try:
+					row_html = re.sub(r"\s+", " ", row_html).strip()
+				except Exception:
+					pass
+			except Exception:
+				row_html = ""
 			# localizar la última celda y tratar de obtener codigo_venta desde la fila
 			try:
 				last_td = row.find_element(By.XPATH, "./td[last()]")
@@ -143,14 +159,19 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				# nada para clicar en esta fila
 				row_html = ""
 				try:
-					row_html = row.get_attribute('outerHTML')[:2000]
+					row_html = (row.get_attribute('outerHTML') or "")
+					try:
+						row_html = re.sub(r"\s+", " ", row_html).strip()
+					except Exception:
+						pass
 				except Exception:
 					row_html = "<unable to get row html>"
 				# still, if code_from_row exists and not seen, add a placeholder client with only code
 				if code_from_row and code_from_row not in seen_codes:
 					client = {k: "" for k in ("name","birth_date","rfc","curp","sexo","estado_civil","telefono_local","telefono_celular","email","id_cliente","codigo_venta")}
 					client['codigo_venta'] = code_from_row
-					clients.append(client)
+					entry = {'row_html': row_html, 'cliente': client}
+					clients.append(entry)
 					seen_codes.add(code_from_row)
 					try:
 						dirname = os.path.dirname(out_path)
@@ -272,14 +293,19 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				print(f"Error extrayendo cliente en fila {i}: {e}")
 				client = {}
 				try:
-					row_html = row.get_attribute('outerHTML')[:2000]
+					row_html = (row.get_attribute('outerHTML') or "")
+					try:
+						row_html = re.sub(r"\s+", " ", row_html).strip()
+					except Exception:
+						pass
 				except Exception:
 					row_html = "<unable to get row html>"
 				skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
 
 			code = client.get('codigo_venta') or client.get('codigo') or ''
-			# always append the extracted client (allow duplicates)
-			clients.append(client)
+			# always append the extracted client as an entry with row_html (allow duplicates)
+			entry = {'row_html': row_html, 'cliente': client}
+			clients.append(entry)
 			if code:
 				seen_codes.add(code)
 			# escribir incrementalmente
