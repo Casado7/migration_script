@@ -896,7 +896,7 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 		# Extraer clientes para todas las filas de la tabla
 		try:
 			# final run: limit pages to 21 (full run)
-			clients = extract_all_clients(driver, out_path="output/clients.json", max_rows=None, max_pages=1, timeout=timeout)
+			clients = extract_all_clients(driver, out_path="output/clients.json", max_rows=None, max_pages=2, timeout=timeout)
 			print(f"Extracted {len(clients)} clients (saved to output/clients.json)")
 		except Exception as e:
 			print("Warning: could not extract clients from all rows:", e)
