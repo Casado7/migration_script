@@ -38,18 +38,17 @@ def _resolve_output_path(path: str) -> str:
 	return os.path.join(repo_root, path.replace('/', os.sep).replace('\\', os.sep))
 
 
-def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows: int | None = None, max_pages: int | None = None, timeout: int = 30):
-	"""Recorre todas las filas de la tabla principal, abre cada detalle (clic en Ver más),
-	extrae la información del cliente y la agrega a out_path.
-
-	Deduplicamos por `codigo_venta` cuando esté disponible.
+def extract_all_rows_info(driver, out_path: str = "output/rows_info.json", max_rows: int | None = None, max_pages: int | None = None, timeout: int = 30):
+	"""Itera todas las filas de la tabla principal, abre cada detalle (modal/pestaña)
+	y extrae un paquete completo de datos para cada fila: metadatos de la fila
+	(columnas), `cliente` (información personal) e `info_credito` (información del crédito).
 
 	max_pages: si no es None, limita el número de páginas a recorrer (1 = solo la primera página).
 	"""
 	# ensure out_path is absolute and points to repo-root/output
 	out_path = _resolve_output_path(out_path)
 
-	clients = []
+	rows_info = []
 	seen_codes = set()
 	skipped_rows = []  # collect diagnostics about skipped rows
 
@@ -61,15 +60,15 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				for item in existing:
 					# si ya está en nuevo formato, conservar
 					if isinstance(item, dict) and 'row' in item and 'cliente' in item:
-						clients.append(item)
+						rows_info.append(item)
 						continue
 					# si es un dict que parece cliente (tiene 'name' o 'id_cliente'), envolver
 					if isinstance(item, dict):
 						if 'name' in item or 'id_cliente' in item or 'codigo_venta' in item:
-							clients.append({'row': {}, 'cliente': item, 'info_credito': {}})
+							rows_info.append({'row': {}, 'cliente': item, 'info_credito': {}})
 							continue
 					# otherwise, append as-is
-					clients.append(item)
+					rows_info.append(item)
 	except Exception:
 		# ignorar errores de carga
 		pass
@@ -78,7 +77,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 	table = detect_main_table(driver)
 	if table is None:
 		print("No se encontró tabla para iterar filas")
-		return clients
+		return rows_info
 
 	processed = 0
 	page_index = 1
@@ -185,14 +184,14 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 					client = {k: "" for k in ("name","birth_date","rfc","curp","sexo","estado_civil","telefono_local","telefono_celular","email","id_cliente","codigo_venta")}
 					client['codigo_venta'] = code_from_row
 					# append as wrapped object with row info
-					clients.append({'row': col_map or {'html': row_html}, 'cliente': client, 'info_credito': {}})
+					rows_info.append({'row': col_map or {'html': row_html}, 'cliente': client, 'info_credito': {}})
 					seen_codes.add(code_from_row)
 					try:
 						dirname = os.path.dirname(out_path)
 						if dirname and not os.path.exists(dirname):
 							os.makedirs(dirname, exist_ok=True)
 						with open(out_path, 'w', encoding='utf-8') as fh:
-							json.dump(clients, fh, ensure_ascii=False, indent=2)
+							json.dump(rows_info, fh, ensure_ascii=False, indent=2)
 					except Exception:
 						print('Warning: could not write placeholder client to file')
 					# record this event for diagnostics
@@ -322,7 +321,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 
 			code = client.get('codigo_venta') or client.get('codigo') or ''
 			# always append the extracted client (allow duplicates) including credit info
-			clients.append({'row': col_map or {}, 'cliente': client, 'info_credito': credit_info})
+			rows_info.append({'row': col_map or {}, 'cliente': client, 'info_credito': credit_info})
 			if code:
 				seen_codes.add(code)
 			# escribir incrementalmente
@@ -331,9 +330,9 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				if dirname and not os.path.exists(dirname):
 					os.makedirs(dirname, exist_ok=True)
 				with open(out_path, 'w', encoding='utf-8') as fh:
-					json.dump(clients, fh, ensure_ascii=False, indent=2)
+					json.dump(rows_info, fh, ensure_ascii=False, indent=2)
 			except Exception as e:
-				print('Warning: could not write clients file:', e)
+				print('Warning: could not write rows_info file:', e)
 
 			# cerrar ventana nueva si abrimos una y volver a la original
 			try:
@@ -387,7 +386,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 
 
         # finished rows on this page (or reached max_rows)
-		processed = len(clients)
+		processed = len(rows_info)
 		# if max_rows limit reached, stop pagination
 		if max_rows is not None and processed >= max_rows:
 			break
@@ -404,7 +403,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 		time.sleep(0.6)
 		page_index += 1
 
-	print(f"Extraction finished: {len(clients)} clients (including pre-existing)")
+	print(f"Extraction finished: {len(rows_info)} rows (including pre-existing)")
 	# escribir diagnóstico de filas saltadas para inspección
 	try:
 		dirname = os.path.dirname(out_path) or 'output'
@@ -415,7 +414,7 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 		print(f"Wrote skip_rows_debug.json with {len(skipped_rows)} records for diagnosis")
 	except Exception as e:
 		print('Warning: could not write skip_rows_debug.json:', e)
-	return clients
+	return rows_info
 
 def detect_main_table(driver):
 	"""Intenta localizar la tabla principal de ventas en la página.
@@ -752,10 +751,10 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 		# Extraer clientes para todas las filas de la tabla
 		try:
 			# final run: limit pages to 21 (full run)
-			clients = extract_all_clients(driver, out_path="output/clients.json", max_rows=None, max_pages=2, timeout=timeout)
-			print(f"Extracted {len(clients)} clients (saved to output/clients.json)")
+			rows_info = extract_all_rows_info(driver, out_path="output/rows_info.json", max_rows=None, max_pages=2, timeout=timeout)
+			print(f"Extracted {len(rows_info)} rows (saved to output/rows_info.json)")
 		except Exception as e:
-			print("Warning: could not extract clients from all rows:", e)
+			print("Warning: could not extract all the info from the rows:", e)
 
 		html = driver.page_source
 
