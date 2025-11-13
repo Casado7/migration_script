@@ -5,6 +5,7 @@ import time
 import json
 from typing import Dict, Any
 import re
+import html as _html
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -51,20 +52,71 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 	seen_codes = set()
 	skipped_rows = []  # collect diagnostics about skipped rows
 
-	# cargar existentes si hay
+	# cargar existentes si hay y normalizarlos al nuevo esquema {'row': {...}, 'cliente': {...}}
+	def _parse_row_html_to_cols(row_html: str) -> dict:
+		try:
+			tds = re.findall(r'<td\b[^>]*>(.*?)</td>', row_html, flags=re.IGNORECASE | re.DOTALL)
+		except Exception:
+			return {}
+		canonical = [
+			"Temp.", "Sucursal", "Asesor", "Cliente", "Desarrollo", "Unidad",
+			"Fecha Venta", "Estado", "Plan", "Acciones", "Codigo Venta",
+		]
+		def _norm_key(s: str) -> str:
+			return re.sub(r"[^0-9a-z]+", "_", (s or '').strip().lower()).strip('_')
+		keys = [_norm_key(x) for x in canonical]
+		col_map = {}
+		for idx, td_html in enumerate(tds, start=1):
+			text = re.sub(r'<[^>]+>', '', td_html)
+			try:
+				text = _html.unescape(text).strip()
+			except Exception:
+				text = text.strip()
+			if idx-1 < len(keys):
+				key = keys[idx-1]
+			else:
+				key = f'col_{idx}'
+			col_map[key] = text
+		# fallback: look for hidden input codigo_venta
+		try:
+			m = re.search(r"<input[^>]+name=[\"']codigo_venta[\"'][^>]*value=[\"']([^\"']+)[\"']", row_html, flags=re.IGNORECASE)
+			if m:
+				col_map.setdefault('codigo_venta', m.group(1).strip())
+		except Exception:
+			pass
+		return col_map
+
 	try:
 		if os.path.exists(out_path):
 			with open(out_path, "r", encoding="utf-8") as fh:
 				existing = json.load(fh)
-				# Support both old format (list of client dicts) and new format
-				# where each item is {'row_html':..., 'cliente': {...}}
 				for item in existing:
-					if isinstance(item, dict) and 'cliente' in item:
+					# already new format
+					if isinstance(item, dict) and 'row' in item and 'cliente' in item:
 						clients.append(item)
-					else:
-						clients.append({'row_html': '', 'cliente': item})
+						continue
+					# older format where row_html exists
+					if isinstance(item, dict) and 'row_html' in item and isinstance(item.get('cliente'), dict):
+						cols = _parse_row_html_to_cols(item.get('row_html') or '')
+						clients.append({'row': cols or {'html': item.get('row_html') or ''}, 'cliente': item.get('cliente')})
+						continue
+					# legacy: plain cliente dict (wrap)
+					if isinstance(item, dict) and 'cliente' not in item:
+						clients.append({'row': {}, 'cliente': item})
+						continue
+					# unknown shape: keep as-is but try to preserve
+					clients.append(item)
 	except Exception:
 		# ignorar errores de carga
+		pass
+	# Immediately persist normalized clients (remove any leftover row_html entries)
+	try:
+		dirname = os.path.dirname(out_path)
+		if dirname and not os.path.exists(dirname):
+			os.makedirs(dirname, exist_ok=True)
+		with open(out_path, 'w', encoding='utf-8') as fh:
+			json.dump(clients, fh, ensure_ascii=False, indent=2)
+	except Exception:
 		pass
 
 	# localizar tabla
@@ -338,8 +390,8 @@ def extract_all_clients(driver, out_path: str = "output/clients.json", max_rows:
 				skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
 
 			code = client.get('codigo_venta') or client.get('codigo') or ''
-			# always append the extracted client as an entry with row_html (allow duplicates)
-			entry = {'row_html': row_html, 'cliente': client}
+			# always append the extracted client as an entry with parsed row (allow duplicates)
+			entry = {'row': col_map or {'html': row_html}, 'cliente': client}
 			clients.append(entry)
 			if code:
 				seen_codes.add(code)
