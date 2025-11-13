@@ -508,54 +508,6 @@ def go_to_next_page(driver, timeout: int = 8) -> bool:
 		return False
 
 
-def dump_table_html(driver, out_path: str = "output/table.html") -> str:
-	"""Guarda el outerHTML de la tabla principal en `out_path` y retorna un preview (primeros 4000 chars).
-	Crea el directorio `output/` si no existe.
-	"""
-	table = detect_main_table(driver)
-	if table is None:
-		return "<NO_TABLE_FOUND>"
-
-	html = table.get_attribute("outerHTML")
-	# resolve to repo-rooted output path and ensure directory exists
-	out_path = _resolve_output_path(out_path)
-	dirname = os.path.dirname(out_path)
-	if dirname and not os.path.exists(dirname):
-		os.makedirs(dirname, exist_ok=True)
-
-	with open(out_path, "w", encoding="utf-8") as fh:
-		fh.write(html)
-
-	return html[:4000]
-
-	first_row = rows[0]
-	# obtener la última celda
-	try:
-		cells = first_row.find_elements(By.XPATH, "./td")
-		if not cells:
-			return False
-		last_td = cells[-1]
-		# intentar buscar específicamente el botón 'Ver más' dentro de la última celda
-		try:
-			el = last_td.find_element(By.XPATH, ".//button[contains(.,'Ver más') or contains(.,'Ver mas') or contains(.,'ver mas') or contains(.,'VER MAS')]")
-		except Exception:
-			# fallback: buscar el primer elemento clickeable dentro
-			candidates = last_td.find_elements(By.XPATH, ".//a | .//button | .//input[@type='button'] | .//input[@type='submit']")
-			if not candidates:
-				return False
-			el = candidates[0]
-		# click seguro
-		driver.execute_script('arguments[0].scrollIntoView(true);', el)
-		el.click()
-		time.sleep(0.8)
-		return True
-	except StaleElementReferenceException:
-		return False
-	except Exception:
-		return False
-
-
-
 def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, Any]:
 	"""Carga SOURCE_PAGE_URL desde .env y la abre con Selenium.
 
@@ -764,14 +716,6 @@ def fetch_source_page(headless: bool = False, timeout: int = 30) -> Dict[str, An
 		# pequeña espera para permitir JS adicional (ajustable)
 		time.sleep(1)
 		title = driver.title
-
-		# Volcar HTML de la tabla principal para inspección humana
-		try:
-			table_preview = dump_table_html(driver, out_path="output/table.html")
-			# table saved for inspection; do not print full HTML to console to avoid noisy output
-			print("Table preview saved to output/table.html")
-		except Exception as e:
-			print("Warning: could not dump table html:", e)
 
 		# Intentar seleccionar el filtro 'Desarrollo' a la opción 'UKUUN'
 		try:
