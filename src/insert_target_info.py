@@ -4,7 +4,7 @@ import time
 from dotenv import load_dotenv
 
 from target_helppers.login import start_and_login
-from target_helppers.insert_client import navigate_to_add_client_page
+from target_helppers.insert_client import navigate_to_add_client_page, create_test_client
 
 
 def insert_target_info(headless: bool = False, timeout: int = 20) -> None:
@@ -48,13 +48,19 @@ def insert_target_info(headless: bool = False, timeout: int = 20) -> None:
     nav_success, nav_info = navigate_to_add_client_page(driver)
     if nav_success:
         print('Navigated to add-client page:', nav_info)
+        # Create a fake test client on the add-client page
+        create_success, create_info = create_test_client(driver)
+        if create_success:
+            print('Test client created successfully. Current URL:', create_info)
+        else:
+            print('Test client creation failed:', create_info)
     else:
         print('Navigation to add-client page failed:', nav_info)
 
     # TODO: Add logic here to insert target info after successful login.
 
     # keep the browser open briefly so user can inspect
-    time.sleep(120)
+    time.sleep(2)
     try:
         driver.quit()
     except Exception:
