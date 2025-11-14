@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+import time
 from selenium.webdriver.common.by import By
 from typing import Dict
 
@@ -58,24 +59,73 @@ def extract_credit_info(driver) -> Dict[str, str]:
         "costo_escritura": "",
     }
 
-    try:
-        rows = blk.find_elements(By.XPATH, ".//div[contains(@class,'row') and contains(@class,'no-gutters')]")
-        print(len(rows), "rows found in credit info block")
-    except Exception:
-        return info
+    # Robustly select rows. Some pages render slower or use slightly different
+    # class names/structure. Try a few times and accept rows that contain
+    # currency/percent markers or have non-empty child text.
+    rows = []
+    for attempt in range(3):
+        try:
+            rows = blk.find_elements(By.XPATH, ".//div[contains(@class,'row')]")
+        except Exception:
+            rows = []
+
+        # quick heuristic: consider rows good if we detect currency/percent
+        good = False
+        for rr in rows:
+            try:
+                rt = (rr.text or "").upper()
+                if "$" in rt or "%" in rt or "PRECIO" in rt:
+                    good = True
+                    break
+                # also check child divs for any non-empty inner text
+                cols_check = rr.find_elements(By.XPATH, "./div")
+                for c in cols_check:
+                    inner = (c.text or c.get_attribute('textContent') or '').strip()
+                    if inner:
+                        good = True
+                        break
+                if good:
+                    break
+            except Exception:
+                continue
+
+        if good or attempt == 2:
+            break
+        time.sleep(0.4)
+
+    print(len(rows), "rows found in credit info block (after retries)")
 
     for r in rows:
         try:
+            # Read columns but preserve empty columns to keep alignment.
             cols = r.find_elements(By.XPATH, "./div")
-            texts = [c.text.strip() for c in cols if (c.text or '').strip()]
-            if not texts or len(texts) == 1:
-                print("Skipping row, insufficient texts:", texts)
+            texts = []
+            for c in cols:
+                try:
+                    val = (c.text or c.get_attribute('textContent') or c.get_attribute('innerText') or '').strip()
+                except Exception:
+                    val = ''
+                texts.append(val)
+
+            # If all columns empty, skip (nothing to parse)
+            if not any(texts):
+                print("Skipping empty row (no column text):", texts)
                 continue
-            label = re.sub(r"\s+", " ", texts[0]).strip().lower()
-            print("Processing label:", label, "texts:", texts)
-            # Helper to safely get nth text
+
+            # Find first non-empty column to use as label anchor (handles leading empty divs)
+            label_idx = 0
+            while label_idx < len(texts) and not texts[label_idx]:
+                label_idx += 1
+            if label_idx >= len(texts):
+                print("Skipping row, no label found:", texts)
+                continue
+
+            label = re.sub(r"\s+", " ", texts[label_idx]).strip().lower()
+
+            # Helper to safely get nth text relative to label index
             def t(n: int) -> str:
-                return texts[n] if n < len(texts) else ""
+                idx = label_idx + n
+                return texts[idx] if idx < len(texts) else ""
 
             # Match common labels (lenient contains checks)
             if "desarrollo" in label:
