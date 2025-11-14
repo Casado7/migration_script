@@ -33,20 +33,19 @@ TEST_CLIENT_DEFAULTS = {
     "origin_country": "Venezuela",
     "nationality": "Venezolana",
     "marital_status": "Soltero",
-    "profession_id": "",
+    "profession_id": "AMA DE CASA",
     "sex": "F",
     "client_kind": "M",
 }
 
 
-def _set_input_value(driver: WebDriver, name: str, value: str) -> bool:
-    """Set the value of an input by name. Returns True if set, False otherwise."""
-    try:
-        el = driver.find_element(By.NAME, name)
-        driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input')); arguments[0].dispatchEvent(new Event('change'));", el, value)
-        return True
-    except Exception:
-        return False
+# low-level helpers (moved to helpers.py)
+from .helpers import _set_input_value, _set_react_select_value
+
+# tab-specific fillers
+from .tabs.personal import fill_personal_tab
+from .tabs.general import fill_general_tab
+from .tabs.residence import fill_residence_tab
 
 
 def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int = 20) -> Tuple[bool, str]:
@@ -63,42 +62,12 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     if data:
         defaults.update(data)
 
-    # helper to wait for presence of a field name
-    def wait_for_name(name: str):
-        try:
-            return WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.NAME, name)))
-        except TimeoutException:
-            return None
-
-    # fill simple inputs
-    field_names = [
-        "name", "middle_name", "last_name", "mothers_name", "birth", "email",
-        "phone", "cellphone",
-        "client_address[0].state", "client_address[0].city", "client_address[0].postal_code", "client_address[0].address",
-    ]
-
-    for fname in field_names:
-        el = wait_for_name(fname)
-        if el is None:
-            # continue attempting other fields; some forms lazy-load fields
-            continue
-        try:
-            el.clear()
-            el.send_keys(defaults.get(fname, ""))
-        except Exception:
-            # fallback to js-set
-            _set_input_value(driver, fname, defaults.get(fname, ""))
-
-    # set hidden/select-ish fields by name (phone_prefix, cellphone_prefix, origin_country, etc.)
-    hidden_names = ["phone_prefix", "cellphone_prefix", "origin_country", "nationality", "marital_status", "sex", "client_kind"]
-    for h in hidden_names:
-        if h in defaults:
-            _set_input_value(driver, h, defaults[h])
-
-    # If phone_prefix/cellphone_prefix provided in defaults, set them
-    for h in ("phone_prefix", "cellphone_prefix"):
-        if h in defaults:
-            _set_input_value(driver, h, defaults[h])
+    # Fill personal tab (name, emails, phones, prefixes) using the tab filler
+    try:
+        ok_personal, msg_personal = fill_personal_tab(driver, defaults, timeout)
+    except Exception:
+        ok_personal, msg_personal = False, "exception in fill_personal_tab"
+    # proceed regardless — fillers are best-effort and create_test_client will continue
 
     # click the "Siguiente" button (card-footer)
     def _click_siguiente(timeout_sec: int = timeout) -> bool:
@@ -151,130 +120,13 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     except Exception:
         time.sleep(0.5)
 
-    # --- Now fill the second tab (Datos Generales) ---
-    # Wait for any of the second-tab fields to appear (they are often hidden inputs used by react-select)
-    second_tab_names = [
-        "origin_country",
-        "nationality",
-        "marital_status",
-        "profession_id",
-        "sex",
-        "client_kind",
-    ]
-
-    def wait_for_any_name(names: list[str], wait: int = timeout):
-        try:
-            return WebDriverWait(driver, wait).until(lambda d: any(len(d.find_elements(By.NAME, n)) > 0 for n in names))
-        except Exception:
-            return False
-
-    appeared = wait_for_any_name(second_tab_names, timeout)
-    if not appeared:
-        # If none of the expected hidden inputs appeared, still return success — form advanced but second tab not detected
-        return True, driver.current_url
-
-    # Read second-tab values from the single `defaults` (TEST_CLIENT_DEFAULTS),
-    # allowing overrides via the `data` argument.
-    second_defaults = {k: defaults.get(k, "") for k in second_tab_names}
-
-    # set hidden/select-ish second tab fields
-    def _set_react_select_value(driver: WebDriver, name: str, value: str) -> bool:
-        """Try to set a react-select-like control which has a visible input preceding
-        a hidden input with the `name` attribute. Returns True on success."""
-        try:
-            hidden = driver.find_element(By.NAME, name)
-        except Exception:
-            return False
-
-        try:
-            # find the visible input that is usually the previous sibling or inside the same wrapper
-            input_el = driver.execute_script(
-                "const hidden = arguments[0];"
-                "let container = hidden.previousElementSibling;"
-                "if(!container) container = hidden.parentElement && hidden.parentElement.querySelector('.css-b62m3t-container');"
-                "if(!container) return null;"
-                "const inp = container.querySelector('input');"
-                "return inp;",
-                hidden,
-            )
-            if not input_el:
-                return False
-
-            try:
-                input_el.click()
-            except Exception:
-                try:
-                    driver.execute_script("arguments[0].focus();", input_el)
-                except Exception:
-                    pass
-
-            try:
-                input_el.clear()
-            except Exception:
-                # some react inputs don't support clear(); ignore
-                pass
-
-            try:
-                input_el.send_keys(value)
-                input_el.send_keys(Keys.ENTER)
-            except Exception:
-                # last resort: set value with JS and dispatch events
-                try:
-                    driver.execute_script(
-                        "arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles:true})); arguments[0].dispatchEvent(new Event('change', {bubbles:true}));",
-                        input_el,
-                        value,
-                    )
-                except Exception:
-                    return False
-
-            # give JS time to update hidden input/state
-            try:
-                time.sleep(0.15)
-            except Exception:
-                pass
-
-            return True
-        except Exception:
-            return False
-
-    for name, val in second_defaults.items():
-        # try react-select style first (visible input + hidden named input)
-        try:
-            ok = _set_react_select_value(driver, name, val)
-            if ok:
-                continue
-        except Exception:
-            pass
-
-        # fallback to setting the hidden input directly
-        try:
-            _set_input_value(driver, name, val)
-        except Exception:
-            # ignore individual failures and continue
-            pass
-
-    # Some visible text inputs on second tab (e.g., profession may have a visible input placeholder)
-    visible_second_fields = ["profession_id"]
-    for vf in visible_second_fields:
-        try:
-            els = driver.find_elements(By.NAME, vf)
-            for el in els:
-                try:
-                    el.clear()
-                    el.send_keys(second_defaults.get(vf, ""))
-                except Exception:
-                    _set_input_value(driver, vf, second_defaults.get(vf, ""))
-        except Exception:
-            continue
-
-    # final small wait for any JS to process changes
+    # Fill the second tab (Datos Generales) using the dedicated filler
     try:
-        time.sleep(0.4)
+        ok_general, msg_general = fill_general_tab(driver, defaults, timeout)
     except Exception:
-        pass
+        ok_general, msg_general = False, "exception in fill_general_tab"
 
-    # After filling second tab, click "Siguiente" again to advance to next step
+    # After filling second tab, click "Siguiente" to advance
     try:
         clicked2 = _click_siguiente()
     except Exception:
@@ -289,62 +141,11 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     except Exception:
         time.sleep(0.5)
 
-    # --- Fill "Dirección de Residencia" tab (client_address[0].*) ---
-    # Wait for residence tab inputs to appear and set their values.
+    # Fill residence tab using dedicated filler
     try:
-        # wait a short while for residence fields to render
-        res_present = WebDriverWait(driver, timeout).until(
-            lambda d: len(d.find_elements(By.NAME, 'client_address[0].address')) > 0 or len(d.find_elements(By.NAME, 'client_address[0].state')) > 0
-        )
+        ok_res, msg_res = fill_residence_tab(driver, defaults, timeout)
     except Exception:
-        res_present = False
-
-    if res_present:
-        # Try setting country via react-select-style first (hidden input + visible input)
-        try:
-            country_name = 'client_address[0].country'
-            country_val = defaults.get(country_name) or None
-            if country_val:
-                try:
-                    _set_react_select_value(driver, country_name, country_val)
-                except Exception:
-                    # ignore and fallback to hidden input set
-                    _set_input_value(driver, country_name, country_val)
-        except Exception:
-            pass
-
-        # Visible address fields
-        residence_fields = [
-            'client_address[0].state',
-            'client_address[0].city',
-            'client_address[0].postal_code',
-            'client_address[0].address',
-        ]
-
-        for rf in residence_fields:
-            try:
-                el = wait_for_name(rf)
-                if el is None:
-                    # fallback to direct JS set if element not found
-                    _set_input_value(driver, rf, defaults.get(rf, ''))
-                    continue
-                try:
-                    el.clear()
-                except Exception:
-                    pass
-                try:
-                    el.send_keys(defaults.get(rf, ''))
-                except Exception:
-                    _set_input_value(driver, rf, defaults.get(rf, ''))
-            except Exception:
-                # continue on individual failures
-                continue
-
-        # small pause to let JS/process the changes
-        try:
-            time.sleep(0.3)
-        except Exception:
-            pass
+        ok_res, msg_res = False, "exception in fill_residence_tab"
 
     # Press "Siguiente" two more times (user requested skipping next two tabs)
     for attempt in range(1, 3):
