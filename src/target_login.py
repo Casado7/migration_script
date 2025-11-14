@@ -7,6 +7,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
+from target_helppers.login import fill_and_submit_login
 
 
 def open_target_login(headless: bool = False, timeout: int = 20) -> None:
@@ -44,7 +45,7 @@ def open_target_login(headless: bool = False, timeout: int = 20) -> None:
             # fallback short sleep if wait fails
             time.sleep(1)
 
-        # Fill username and password from .env and submit the form
+        # Load credentials and perform login using helper
         username = os.getenv('TARGET_USERNAME')
         password = os.getenv('TARGET_PASSWORD')
         if not username or not password:
@@ -54,38 +55,13 @@ def open_target_login(headless: bool = False, timeout: int = 20) -> None:
             return
 
         try:
-            user_el = WebDriverWait(driver, timeout).until(
-                EC.presence_of_element_located((By.NAME, 'username'))
-            )
-            pass_el = WebDriverWait(driver, timeout).until(
-                EC.presence_of_element_located((By.NAME, 'password'))
-            )
+            success, info = fill_and_submit_login(driver, username, password, timeout=timeout)
+            if success:
+                print('Login appears to have navigated away from login page. Current URL:', info)
+            else:
+                print('Login may have failed or stayed on page. Current URL or info:', info)
         except Exception as e:
-            print('Could not find username/password inputs:', e)
-            time.sleep(2)
-            return
-
-        user_el.clear()
-        user_el.send_keys(username)
-        pass_el.clear()
-        pass_el.send_keys(password)
-
-        # Find the submit button (type=submit) and click it
-        try:
-            submit_btn = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
-            submit_btn.click()
-        except Exception:
-            # fallback: submit the form via pressing Enter on password field
-            pass_el.send_keys('\n')
-
-        # Wait for navigation / login result
-        try:
-            WebDriverWait(driver, timeout).until(lambda d: d.current_url != url)
-            print('Login appears to have navigated away from login page. Current URL:', driver.current_url)
-        except Exception:
-            # if URL didn't change, wait a short moment and print page title for debugging
-            time.sleep(1)
-            print('Finished submit step (timeout reached). Current URL:', driver.current_url)
+            print('Error while attempting login with helper:', e)
 
         # keep the browser open briefly so user can verify (adjust if you want immediate close)
         time.sleep(2)
