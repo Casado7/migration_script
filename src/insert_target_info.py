@@ -66,6 +66,7 @@ def insert_target_info(headless: bool = False, timeout: int = 20) -> None:
 
             # navigate to add-client page for each client to ensure fresh form
             nav_success, nav_info = navigate_to_add_client_page(driver)
+            time.sleep(2)
             if not nav_success:
                 print('Navigation to add-client page failed:', nav_info)
                 # try next client
@@ -73,6 +74,7 @@ def insert_target_info(headless: bool = False, timeout: int = 20) -> None:
 
             try:
                 create_success, create_info = create_client(driver, client_data)
+                time.sleep(2)
             except Exception as e:
                 create_success, create_info = False, f'exception in create_client: {e}'
 
