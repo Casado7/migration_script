@@ -271,6 +271,21 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     except Exception:
         pass
 
+    # After filling second tab, click "Siguiente" again to advance to next step
+    try:
+        clicked2 = _click_siguiente()
+    except Exception:
+        clicked2 = False
+
+    if not clicked2:
+        return False, "Could not click 'Siguiente' on second tab"
+
+    # wait for navigation/DOM update after second click
+    try:
+        WebDriverWait(driver, timeout).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+    except Exception:
+        time.sleep(0.5)
+
     return True, driver.current_url
 
 
