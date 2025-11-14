@@ -10,6 +10,7 @@ import json
 import os
 import sys
 from typing import Any, Dict, List
+import uuid
 
 
 def split_name(fullname: str) -> Dict[str, str]:
@@ -145,7 +146,12 @@ def transform_client(item: Dict[str, Any]) -> Dict[str, Any]:
     if not birth_val:
         birth_val = "01-01-1900"
 
-    email_val = (item.get("email") or "").strip() or "sincorreo@test.com"
+    raw_email = (item.get("email") or "").strip()
+    if raw_email:
+        email_val = raw_email
+    else:
+        # generate a unique test email for missing emails
+        email_val = f"{uuid.uuid4().hex}@test.com"
 
     cellphone_val = cellphone or "5555555"
 
