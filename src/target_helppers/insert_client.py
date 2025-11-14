@@ -86,13 +86,49 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
             _set_input_value(driver, h, defaults[h])
 
     # click the "Siguiente" button (card-footer)
-    try:
-        btn = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "form .card-footer button.btn-primary"))
-        )
-        btn.click()
-    except Exception as e:
-        return False, f"Could not click 'Siguiente' button: {e}"
+    def _click_siguiente(timeout_sec: int = timeout) -> bool:
+        try:
+            btn = WebDriverWait(driver, timeout_sec).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "form .card-footer button.btn-primary"))
+            )
+        except Exception:
+            return False
+
+        try:
+            # make sure element is in view
+            try:
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
+            except Exception:
+                pass
+
+            # If normal click works, prefer it
+            try:
+                if btn.is_displayed():
+                    btn.click()
+                else:
+                    # element may be present but hidden; try JS click
+                    driver.execute_script("arguments[0].click();", btn)
+            except Exception:
+                # fallback: dispatch a MouseEvent (some apps require real mouse event)
+                try:
+                    driver.execute_script(
+                        "arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, view: window}));",
+                        btn,
+                    )
+                except Exception:
+                    # last resort: direct click via JS
+                    try:
+                        driver.execute_script("arguments[0].click();", btn)
+                    except Exception:
+                        return False
+
+            return True
+        except Exception:
+            return False
+
+    clicked = _click_siguiente()
+    if not clicked:
+        return False, "Could not click 'Siguiente' button (all strategies failed)"
 
     # wait briefly for navigation or DOM change
     try:
