@@ -323,11 +323,25 @@ def main(argv: List[str] | None = None) -> int:
         print("Input must be a JSON array", file=sys.stderr)
         return 3
 
+    # Deduplicate entries by exact name (normalize spaces + case-insensitive)
     transformed: List[Dict[str, Any]] = []
+    seen_names: set = set()
+    total_in = 0
+    duplicates = 0
     for item in data:
         if not isinstance(item, dict):
             continue
+        total_in += 1
+        raw_name = (item.get("name") or "").strip()
+        # normalize: collapse whitespace and lowercase for comparison
+        norm_name = " ".join(raw_name.split()).lower()
+        if norm_name in seen_names:
+            duplicates += 1
+            continue
+        seen_names.add(norm_name)
         transformed.append(transform_client(item))
+
+    print(f"Read {total_in} entries, kept {len(transformed)} unique by name, skipped {duplicates} duplicates")
 
     out_path = args.output if args.output else default_output
     try:
