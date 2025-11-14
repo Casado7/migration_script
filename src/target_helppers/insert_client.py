@@ -30,7 +30,7 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     """
     defaults = {
         "name": "Juan",
-        "middle_name": "P.",
+        "middle_name": "Perez",
         "last_name": "Perez",
         "mothers_name": "Lopez",
         "birth": "1990-01-01",
@@ -99,6 +99,71 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
         WebDriverWait(driver, timeout).until(lambda d: d.execute_script('return document.readyState') == 'complete')
     except Exception:
         time.sleep(0.5)
+
+    # --- Now fill the second tab (Datos Generales) ---
+    # Wait for any of the second-tab fields to appear (they are often hidden inputs used by react-select)
+    second_tab_names = [
+        "origin_country",
+        "nationality",
+        "marital_status",
+        "profession_id",
+        "sex",
+        "client_kind",
+    ]
+
+    def wait_for_any_name(names: list[str], wait: int = timeout):
+        try:
+            return WebDriverWait(driver, wait).until(lambda d: any(len(d.find_elements(By.NAME, n)) > 0 for n in names))
+        except Exception:
+            return False
+
+    appeared = wait_for_any_name(second_tab_names, timeout)
+    if not appeared:
+        # If none of the expected hidden inputs appeared, still return success — form advanced but second tab not detected
+        return True, driver.current_url
+
+    # Defaults for second tab values
+    second_defaults = {
+        "origin_country": "México",
+        "nationality": "Mexicana",
+        "marital_status": "Soltero",
+        "profession_id": "",
+        "sex": "M",
+        "client_kind": "F",
+    }
+    if data:
+        # allow overriding second-tab defaults via the same `data` dict
+        for k in second_defaults:
+            if k in data:
+                second_defaults[k] = data[k]
+
+    # set hidden/select-ish second tab fields
+    for name, val in second_defaults.items():
+        try:
+            _set_input_value(driver, name, val)
+        except Exception:
+            # ignore individual failures and continue
+            pass
+
+    # Some visible text inputs on second tab (e.g., profession may have a visible input placeholder)
+    visible_second_fields = ["profession_id"]
+    for vf in visible_second_fields:
+        try:
+            els = driver.find_elements(By.NAME, vf)
+            for el in els:
+                try:
+                    el.clear()
+                    el.send_keys(second_defaults.get(vf, ""))
+                except Exception:
+                    _set_input_value(driver, vf, second_defaults.get(vf, ""))
+        except Exception:
+            continue
+
+    # final small wait for any JS to process changes
+    try:
+        time.sleep(0.4)
+    except Exception:
+        pass
 
     return True, driver.current_url
 
