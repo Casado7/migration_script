@@ -93,7 +93,6 @@ def extract_credit_info(driver) -> Dict[str, str]:
             break
         time.sleep(0.4)
 
-    print(len(rows), "rows found in credit info block (after retries)")
 
     for r in rows:
         try:
