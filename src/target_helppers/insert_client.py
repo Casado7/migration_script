@@ -33,7 +33,7 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
         "middle_name": "Perez",
         "last_name": "Perez",
         "mothers_name": "Lopez",
-        "birth": "1990-01-01",
+        "birth": "01-01-1990",
         "email": "juan.perez.test+1@example.com",
         "phone_prefix": "52",
         "phone": "5551234567",
