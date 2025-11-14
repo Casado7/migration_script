@@ -13,27 +13,68 @@ from typing import Any, Dict, List
 
 
 def split_name(fullname: str) -> Dict[str, str]:
-    parts = [p for p in (fullname or "").strip().split() if p]
+    # normalize and split, removing pure-punctuation tokens
+    raw_parts = (fullname or "").strip().split()
+
+    def is_noise(tok: str) -> bool:
+        t = (tok or "").strip()
+        if not t:
+            return True
+        # if token contains no alphanumeric letters, treat as noise (e.g. ".")
+        for ch in t:
+            if ch.isalnum() or ch.isalpha():
+                return False
+        return True
+
+    parts = [p for p in raw_parts if not is_noise(p)]
+
     res = {"name": "", "middle_name": "", "last_name": "", "mothers_name": ""}
     if not parts:
         return res
+
+    # Spanish name articles/prefixes that should attach to the following surname
+    ARTICLES = {"DE", "DEL", "LA", "LAS", "LOS", "Y", "MC", "VON", "VAN"}
+
     if len(parts) == 1:
         res["name"] = parts[0]
         return res
+
     if len(parts) == 2:
         res["name"] = parts[0]
         res["last_name"] = parts[1]
         return res
+
     if len(parts) == 3:
+        # assume: name, last_name, mothers_name (no middle name)
         res["name"] = parts[0]
-        res["middle_name"] = parts[1]
-        res["last_name"] = parts[2]
+        res["last_name"] = parts[1]
+        res["mothers_name"] = parts[2]
         return res
-    # 4+ parts: assume first, second, last-1, last
-    res["name"] = parts[0]
-    res["middle_name"] = parts[1]
-    res["last_name"] = parts[-2]
-    res["mothers_name"] = parts[-1]
+
+    # 4+ parts: name, middle_name(s), last_name, mothers_name
+    name_val = parts[0]
+    mothers = parts[-1]
+    last_tokens = [parts[-2]]
+    middle_tokens = parts[1:-2]
+
+    # If middle_tokens end with an article (or two-token article like DE LA), move it to last_name
+    if middle_tokens:
+        # check two-token article (DE LA / DE LAS / DE LOS)
+        if len(middle_tokens) >= 2 and middle_tokens[-2].upper() == "DE" and middle_tokens[-1].upper() in {"LA", "LAS", "LOS"}:
+            last_tokens.insert(0, middle_tokens.pop())
+            last_tokens.insert(0, "DE")
+        else:
+            last_tok_upper = middle_tokens[-1].upper()
+            if last_tok_upper in ARTICLES:
+                last_tokens.insert(0, middle_tokens.pop())
+
+    middle_val = " ".join(middle_tokens).strip()
+    last_val = " ".join(last_tokens).strip()
+
+    res["name"] = name_val
+    res["middle_name"] = middle_val
+    res["last_name"] = last_val
+    res["mothers_name"] = mothers
     return res
 
 
