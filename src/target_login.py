@@ -53,4 +53,4 @@ def open_target_login(headless: bool = False, timeout: int = 20) -> None:
 
 if __name__ == '__main__':
     # Run non-headless by default so you can see the page
-    open_target_login(headless=True)
+    open_target_login(headless=False)
