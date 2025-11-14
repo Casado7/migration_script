@@ -141,12 +141,6 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     except Exception:
         time.sleep(0.5)
 
-    # Fill residence tab using dedicated filler
-    try:
-        ok_res, msg_res = fill_residence_tab(driver, defaults, timeout)
-    except Exception:
-        ok_res, msg_res = False, "exception in fill_residence_tab"
-
     # Press "Siguiente" two more times (user requested skipping next two tabs)
     for attempt in range(1, 3):
         try:
@@ -162,6 +156,12 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
             WebDriverWait(driver, timeout).until(lambda d: d.execute_script('return document.readyState') == 'complete')
         except Exception:
             time.sleep(0.5)
+
+    # Fill residence tab using dedicated filler
+    try:
+        ok_res, msg_res = fill_residence_tab(driver, defaults, timeout)
+    except Exception:
+        ok_res, msg_res = False, "exception in fill_residence_tab"
 
     return True, driver.current_url
 
