@@ -60,7 +60,7 @@ def insert_target_info(headless: bool = False, timeout: int = 20) -> None:
     # TODO: Add logic here to insert target info after successful login.
 
     # keep the browser open briefly so user can inspect
-    time.sleep(2)
+    time.sleep(120)
     try:
         driver.quit()
     except Exception:
