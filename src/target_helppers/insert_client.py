@@ -160,12 +160,12 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
 
     # Defaults for second tab values
     second_defaults = {
-        "origin_country": "México",
-        "nationality": "Mexicana",
+        "origin_country": "Venezuela",
+        "nationality": "Venezolana",
         "marital_status": "Soltero",
         "profession_id": "",
-        "sex": "M",
-        "client_kind": "F",
+        "sex": "F",
+        "client_kind": "M",
     }
     if data:
         # allow overriding second-tab defaults via the same `data` dict
