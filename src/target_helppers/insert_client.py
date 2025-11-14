@@ -10,7 +10,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.keys import Keys
 
 
-# Default test client data used by `create_test_client`.
+# Default test client data used by `create_client`.
 # Placed here so tests and callers can override or import easily.
 TEST_CLIENT_DEFAULTS = {
     "name": "Juan",
@@ -47,7 +47,7 @@ from .tabs.residence import fill_residence_tab
 from .tabs.advertising import fill_advertising_tab
 
 
-def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int = 20) -> Tuple[bool, str]:
+def create_client(driver: WebDriver, data: dict | None = None, timeout: int = 20) -> Tuple[bool, str]:
     """Fill the Add Client form with fake test data and advance the form.
 
     - `driver`: active WebDriver on the add-client page
@@ -66,7 +66,7 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
         ok_personal, msg_personal = fill_personal_tab(driver, defaults, timeout)
     except Exception:
         ok_personal, msg_personal = False, "exception in fill_personal_tab"
-    # proceed regardless — fillers are best-effort and create_test_client will continue
+    # proceed regardless — fillers are best-effort and create_client will continue
 
     # click the "Siguiente" button (card-footer)
     def _click_siguiente(timeout_sec: int = timeout) -> bool:

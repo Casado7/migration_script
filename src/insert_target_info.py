@@ -4,7 +4,7 @@ import time
 from dotenv import load_dotenv
 
 from target_helppers.login import start_and_login
-from target_helppers.insert_client import navigate_to_add_client_page, create_test_client
+from target_helppers.insert_client import navigate_to_add_client_page, create_client
 
 
 def insert_target_info(headless: bool = False, timeout: int = 20) -> None:
@@ -49,7 +49,7 @@ def insert_target_info(headless: bool = False, timeout: int = 20) -> None:
     if nav_success:
         print('Navigated to add-client page:', nav_info)
         # Create a fake test client on the add-client page
-        create_success, create_info = create_test_client(driver)
+        create_success, create_info = create_client(driver)
         if create_success:
             print('Test client created successfully. Current URL:', create_info)
         else:
