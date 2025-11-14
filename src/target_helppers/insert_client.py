@@ -10,6 +10,35 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.keys import Keys
 
 
+# Default test client data used by `create_test_client`.
+# Placed here so tests and callers can override or import easily.
+TEST_CLIENT_DEFAULTS = {
+    "name": "Juan",
+    "middle_name": "Perez",
+    "last_name": "Perez",
+    "mothers_name": "Lopez",
+    "birth": "01-01-1990",
+    "email": "juan.perez.test+1@example.com",
+    "phone_prefix": "52",
+    "phone": "5551234567",
+    "cellphone_prefix": "52",
+    "cellphone": "5512345678",
+    # address
+    "client_address[0].country": "México",
+    "client_address[0].state": "Ciudad de Mexico",
+    "client_address[0].city": "Ciudad de Mexico",
+    "client_address[0].postal_code": "01234",
+    "client_address[0].address": "Av. Test 123",
+    # second tab defaults (moved to single test client object)
+    "origin_country": "Venezuela",
+    "nationality": "Venezolana",
+    "marital_status": "Soltero",
+    "profession_id": "",
+    "sex": "F",
+    "client_kind": "M",
+}
+
+
 def _set_input_value(driver: WebDriver, name: str, value: str) -> bool:
     """Set the value of an input by name. Returns True if set, False otherwise."""
     try:
@@ -29,23 +58,8 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     Returns (success, info). On success `info` is the URL after clicking "Siguiente",
     otherwise it contains an error message.
     """
-    defaults = {
-        "name": "Juan",
-        "middle_name": "Perez",
-        "last_name": "Perez",
-        "mothers_name": "Lopez",
-        "birth": "01-01-1990",
-        "email": "juan.perez.test+1@example.com",
-        "phone_prefix": "52",
-        "phone": "5551234567",
-        "cellphone_prefix": "52",
-        "cellphone": "5512345678",
-        # address
-        "client_address[0].state": "Ciudad de Mexico",
-        "client_address[0].city": "Ciudad de Mexico",
-        "client_address[0].postal_code": "01234",
-        "client_address[0].address": "Av. Test 123",
-    }
+    # Start from module-level defaults; allow caller override via `data`.
+    defaults = TEST_CLIENT_DEFAULTS.copy()
     if data:
         defaults.update(data)
 
@@ -159,20 +173,9 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
         # If none of the expected hidden inputs appeared, still return success — form advanced but second tab not detected
         return True, driver.current_url
 
-    # Defaults for second tab values
-    second_defaults = {
-        "origin_country": "Venezuela",
-        "nationality": "Venezolana",
-        "marital_status": "Soltero",
-        "profession_id": "",
-        "sex": "F",
-        "client_kind": "M",
-    }
-    if data:
-        # allow overriding second-tab defaults via the same `data` dict
-        for k in second_defaults:
-            if k in data:
-                second_defaults[k] = data[k]
+    # Read second-tab values from the single `defaults` (TEST_CLIENT_DEFAULTS),
+    # allowing overrides via the `data` argument.
+    second_defaults = {k: defaults.get(k, "") for k in second_tab_names}
 
     # set hidden/select-ish second tab fields
     def _set_react_select_value(driver: WebDriver, name: str, value: str) -> bool:
@@ -285,6 +288,63 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
         WebDriverWait(driver, timeout).until(lambda d: d.execute_script('return document.readyState') == 'complete')
     except Exception:
         time.sleep(0.5)
+
+    # --- Fill "Dirección de Residencia" tab (client_address[0].*) ---
+    # Wait for residence tab inputs to appear and set their values.
+    try:
+        # wait a short while for residence fields to render
+        res_present = WebDriverWait(driver, timeout).until(
+            lambda d: len(d.find_elements(By.NAME, 'client_address[0].address')) > 0 or len(d.find_elements(By.NAME, 'client_address[0].state')) > 0
+        )
+    except Exception:
+        res_present = False
+
+    if res_present:
+        # Try setting country via react-select-style first (hidden input + visible input)
+        try:
+            country_name = 'client_address[0].country'
+            country_val = defaults.get(country_name) or None
+            if country_val:
+                try:
+                    _set_react_select_value(driver, country_name, country_val)
+                except Exception:
+                    # ignore and fallback to hidden input set
+                    _set_input_value(driver, country_name, country_val)
+        except Exception:
+            pass
+
+        # Visible address fields
+        residence_fields = [
+            'client_address[0].state',
+            'client_address[0].city',
+            'client_address[0].postal_code',
+            'client_address[0].address',
+        ]
+
+        for rf in residence_fields:
+            try:
+                el = wait_for_name(rf)
+                if el is None:
+                    # fallback to direct JS set if element not found
+                    _set_input_value(driver, rf, defaults.get(rf, ''))
+                    continue
+                try:
+                    el.clear()
+                except Exception:
+                    pass
+                try:
+                    el.send_keys(defaults.get(rf, ''))
+                except Exception:
+                    _set_input_value(driver, rf, defaults.get(rf, ''))
+            except Exception:
+                # continue on individual failures
+                continue
+
+        # small pause to let JS/process the changes
+        try:
+            time.sleep(0.3)
+        except Exception:
+            pass
 
     # Press "Siguiente" two more times (user requested skipping next two tabs)
     for attempt in range(1, 3):
