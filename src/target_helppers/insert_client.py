@@ -163,6 +163,20 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     except Exception:
         ok_res, msg_res = False, "exception in fill_residence_tab"
 
+    for attempt in range(1, 3):
+        try:
+            ok = _click_siguiente()
+        except Exception:
+            ok = False
+
+        if not ok:
+            return False, f"Could not click 'Siguiente' on subsequent step #{attempt}"
+        # small wait after each click to allow DOM updates
+        try:
+            WebDriverWait(driver, timeout).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+        except Exception:
+            time.sleep(0.5)
+
     return True, driver.current_url
 
 
