@@ -290,6 +290,12 @@ def transform_client(item: Dict[str, Any]) -> Dict[str, Any]:
         "client_kind": "M",
     }
 
+    # Enforce maxLength=50 on all string fields to satisfy form validations
+    MAX_LEN = 50
+    for k, v in list(out.items()):
+        if isinstance(v, str) and len(v) > MAX_LEN:
+            out[k] = v[:MAX_LEN]
+
     return out
 
 
