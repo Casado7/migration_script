@@ -7,6 +7,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.keys import Keys
 
 
 def _set_input_value(driver: WebDriver, name: str, value: str) -> bool:
@@ -174,7 +175,76 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
                 second_defaults[k] = data[k]
 
     # set hidden/select-ish second tab fields
+    def _set_react_select_value(driver: WebDriver, name: str, value: str) -> bool:
+        """Try to set a react-select-like control which has a visible input preceding
+        a hidden input with the `name` attribute. Returns True on success."""
+        try:
+            hidden = driver.find_element(By.NAME, name)
+        except Exception:
+            return False
+
+        try:
+            # find the visible input that is usually the previous sibling or inside the same wrapper
+            input_el = driver.execute_script(
+                "const hidden = arguments[0];"
+                "let container = hidden.previousElementSibling;"
+                "if(!container) container = hidden.parentElement && hidden.parentElement.querySelector('.css-b62m3t-container');"
+                "if(!container) return null;"
+                "const inp = container.querySelector('input');"
+                "return inp;",
+                hidden,
+            )
+            if not input_el:
+                return False
+
+            try:
+                input_el.click()
+            except Exception:
+                try:
+                    driver.execute_script("arguments[0].focus();", input_el)
+                except Exception:
+                    pass
+
+            try:
+                input_el.clear()
+            except Exception:
+                # some react inputs don't support clear(); ignore
+                pass
+
+            try:
+                input_el.send_keys(value)
+                input_el.send_keys(Keys.ENTER)
+            except Exception:
+                # last resort: set value with JS and dispatch events
+                try:
+                    driver.execute_script(
+                        "arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles:true})); arguments[0].dispatchEvent(new Event('change', {bubbles:true}));",
+                        input_el,
+                        value,
+                    )
+                except Exception:
+                    return False
+
+            # give JS time to update hidden input/state
+            try:
+                time.sleep(0.15)
+            except Exception:
+                pass
+
+            return True
+        except Exception:
+            return False
+
     for name, val in second_defaults.items():
+        # try react-select style first (visible input + hidden named input)
+        try:
+            ok = _set_react_select_value(driver, name, val)
+            if ok:
+                continue
+        except Exception:
+            pass
+
+        # fallback to setting the hidden input directly
         try:
             _set_input_value(driver, name, val)
         except Exception:
