@@ -184,7 +184,21 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
         ok_adv, msg_adv = fill_advertising_tab(driver, defaults, timeout)
     except Exception:
         ok_adv, msg_adv = False, "exception in fill_advertising_tab"
-        
+    # After advertising, the form shows a 'Guardar' (submit) button instead of "Siguiente".
+    try:
+        clicked_save = _click_siguiente()
+    except Exception:
+        clicked_save = False
+
+    if not clicked_save:
+        return False, "Could not click 'Guardar' button"
+
+    # wait for navigation/DOM update after save
+    try:
+        WebDriverWait(driver, timeout).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+    except Exception:
+        time.sleep(0.5)
+
     return True, driver.current_url
 
 
