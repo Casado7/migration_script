@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from helppers.extract_credit import extract_credit_info
 from helppers.extract_client import extract_client_info
+from helppers.extract_amortization import extract_amortization_table
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import WebDriverException, TimeoutException, NoSuchElementException
@@ -280,6 +281,13 @@ def extract_all_rows_info(driver, out_path: str = "output/rows_info.json", max_r
 			except Exception:
 				credit_info = {}
 
+			# extraer la Tabla de Amortización (si existe) antes de pasar a la pestaña Cliente
+			amortizacion = []
+			try:
+				amortizacion = extract_amortization_table(driver)
+			except Exception:
+				amortizacion = []
+
 			# intentar activar la pestaña 'Cliente'
 			try:
 				tab_xpaths = [
@@ -320,8 +328,8 @@ def extract_all_rows_info(driver, out_path: str = "output/rows_info.json", max_r
 				skipped_rows.append({"row_index": i, "reason": "extraction_exception", "error": str(e), "row_html": row_html})
 
 			code = client.get('codigo_venta') or client.get('codigo') or ''
-			# always append the extracted client (allow duplicates) including credit info
-			rows_info.append({'row': col_map or {}, 'cliente': client, 'info_credito': credit_info})
+			# always append the extracted client (allow duplicates) including credit info and amortization
+			rows_info.append({'row': col_map or {}, 'cliente': client, 'info_credito': credit_info, 'amortizacion': amortizacion})
 			if code:
 				seen_codes.add(code)
 			# escribir incrementalmente
