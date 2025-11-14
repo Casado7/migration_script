@@ -12,6 +12,7 @@ import sys
 from typing import Any, Dict, List
 import uuid
 import re
+import unicodedata
 
 
 def split_name(fullname: str) -> Dict[str, str]:
@@ -161,7 +162,107 @@ def transform_client(item: Dict[str, Any]) -> Dict[str, Any]:
 
     nationality_val = item.get("nacionalidad") or item.get("pais") or "Mexicano"
 
-    profession_val = item.get("ocupacion") or "NO ESPECIFICADOS Y NO DECLARADOS"
+    def _norm(s: str) -> str:
+        if not s:
+            return ""
+        s2 = str(s)
+        s2 = unicodedata.normalize('NFD', s2)
+        s2 = s2.encode('ascii', 'ignore').decode('ascii')
+        return s2.lower().strip()
+
+    def choose_profession(raw: str) -> str:
+        """Map raw occupation text to one of the canonical categories.
+
+        Uses simple keyword heuristics; returns fallback 'NO ESPECIFICADOS Y NO DECLARADOS'.
+        """
+        if not raw:
+            return "NO ESPECIFICADOS Y NO DECLARADOS"
+        t = _norm(raw)
+
+        # Exact matches / common keywords
+        if any(k in t for k in ("ama de casa", "ama", "ama_casa", "ama_de_casa")):
+            return "AMA DE CASA"
+        if any(k in t for k in ("estudiante", "alumno", "estudia")):
+            return "ESTUDIANTE"
+        if any(k in t for k in ("jubil", "retir", "pension")):
+            return "RETIRADO/JUBILADO"
+
+        # Professionals
+        if any(k in t for k in ("ingenier", "abog", "medic", "doctor", "arquitect", "contad", "profesion", "profesional", "licenciad", "odontol")):
+            return "PROFESIONISTAS"
+
+        if any(k in t for k in ("tecnic", "tec ", "tecnico")):
+            return "TECNICOS"
+
+        # Education / arts / sports
+        if any(k in t for k in ("docent", "profesor", "maestr", "educ")):
+            return "TRABAJADORES DE LA EDUCACION"
+        if any(k in t for k in ("artista", "actor", "musico", "music", "deport", "entrenador", "show", "espectac")):
+            return "TRABAJADORES DEL ARTE, ESPECTACULOS Y DEPORTES"
+
+        # Management / directors
+        if any(k in t for k in ("director", "gerente", "gerencia", "jefe", "president", "coordinador", "administrador", "subdirector")):
+            return "FUNCIONARIOS Y DIRECTIVOS DE LOS SECTORES PUBLICO, PRIVADO Y SOCIAL"
+
+        # Agriculture / primary sector
+        if any(k in t for k in ("agric", "ganad", "campo", "pesca", "silvic")):
+            return "TRABAJADORES EN ACTIVIDADES AGRICOLAS, GANADERAS, SILVICOLAS Y DE CAZA Y PESCA"
+
+        # Supervisors / production leaders
+        if any(k in t for k in ("supervis", "supervisor", "encargado", "capataz")):
+            return "JEFES, SUPERVISORES Y OTROS TRABAJADORES DE CONTROL EN LA FABRICACION ARTESANAL E INDUSTRIAL Y EN ACTIVIDADES DE REPARACION Y MANTENIMIENTO"
+
+        # Artisans / factory workers
+        if any(k in t for k in ("artesan", "fabril", "fabr", "operario", "obrero", "taller", "fabrica", "manufactur")):
+            return "ARTESANOS Y TRABAJADORES FABRILES EN LA INDUSTRIA DE LA TRANSFORMACION Y TRABAJADORES EN ACTIVIDADES DE REPARACION Y MANTENIMIENTO"
+
+        # Operators / machinery
+        if any(k in t for k in ("operador", "maquinaria", "operar maquin", "maquin")):
+            return "OPERADORES DE MAQUINARIA FIJA DE MOVIMIENTO CONTINUO Y EQUIPOS EN EL PROCESO DE FABRICACION INDUSTRAL"
+
+        # Helpers / laborers
+        if any(k in t for k in ("ayudante", "peon", "peon", "obreros", "ayudant")):
+            return "AYUDANTES, PEONES Y SIMILARES EN EL PROCESO DE FABRICACION ARTESANAL E INDUSTRIAL Y EN ACTIVIDADES DE REPARACION Y MANTENIMIENTO"
+
+        # Drivers
+        if any(k in t for k in ("chofer", "conductor", "taxi", "camion", "camionero")):
+            return "CONDUCTORES Y AYUDANTES DE CONDUCTORES DE MAQUINARIA MOVIL Y MEDIOS DE TRANSPORTE"
+
+        # Administrative / service supervisors
+        if any(k in t for k in ("coordinador", "jefe de departamento", "coordinacion", "jefe de")):
+            return "JEFES DE DEPARTAMENTO, COORDINADORES Y SUPERVISORES EN ACTIVIDADES ADMINISTRATIVAS Y DE SERVICIOS"
+
+        # Administrative support
+        if any(k in t for k in ("administrativ", "auxiliar", "secretar", "asistente")):
+            return "TRABAJADORES DE APOYO EN ACTIVIDADES ADMINISTRATIVAS"
+
+        # Commerce / sales
+        if any(k in t for k in ("comerc", "venta", "vendedor", "ventas", "empleado de comercio", "agente")):
+            return "COMERCIANTES, EMPLEADOS DE COMERCIO Y AGENTES DE VENTAS"
+
+        if any(k in t for k in ("ambulant", "ambulante", "vendedor ambulante")):
+            return "VENDEDORES AMBULANTES Y TRABAJADORES AMBULANTES EN SERVICIOS"
+
+        # Personal services
+        if any(k in t for k in ("estetica", "peluquer", "salon", "restaurante", "hotel", "servicio")):
+            return "TRABAJADORES EN SERVICIOS PERSONALES EN ESTABLECIMIENTOS"
+
+        # Domestic services
+        if any(k in t for k in ("domestic", "servicios domesticos", "empleada domestica", "domestic")):
+            return "TRABAJADORES EN SERVICIOS DOMESTICOS"
+
+        # Protection / security
+        if any(k in t for k in ("segurid", "vigilant", "policia", "militar", "fuerza armada")):
+            return "TRABAJADORES EN SERVICIOS DE PROTECCION Y VIGILANCIA Y FUERZAS ARMADAS"
+
+        # Support to production
+        if any(k in t for k in ("produccion", "mantenimiento", "apoyo a la produccion", "soporte de produccion")):
+            return "TRABAJADORES EN SERVICIOS DE APOYO A LA PRODUCCIÓN"
+
+        # Default fallback
+        return "NO ESPECIFICADOS Y NO DECLARADOS"
+
+    profession_val = choose_profession(item.get("ocupacion") or item.get("actividad_economica") or "")
 
     out = {
         "name": name_val,
