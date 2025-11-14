@@ -94,29 +94,46 @@ def transform_client(item: Dict[str, Any]) -> Dict[str, Any]:
     phone = (item.get("telefono_local") or "" ).strip()
     cellphone = (item.get("telefono_celular") or "" ).strip()
     # prefer cellphone for `cellphone` and phone for `phone`
+    # apply defaults for required fields
+    name_val = name_parts.get("name", "") or "Sin Nombre"
+    last_name_val = name_parts.get("last_name", "") or "Sin Apellido"
+    middle_val = name_parts.get("middle_name", "") or ""
+    mothers_val = name_parts.get("mothers_name", "") or ""
+
+    birth_val = reformat_birth(item.get("birth_date") or item.get("birth") or "")
+    if not birth_val:
+        birth_val = "01-01-1900"
+
+    email_val = (item.get("email") or "").strip() or "sincorreo@test.com"
+
+    cellphone_val = cellphone or "5555555"
+
+    nationality_val = item.get("nacionalidad") or item.get("pais") or "Mexicano"
+
+    profession_val = item.get("ocupacion") or "NO ESPECIFICADOS Y NO DECLARADOS"
 
     out = {
-        "name": name_parts.get("name", ""),
-        "middle_name": name_parts.get("middle_name", ""),
-        "last_name": name_parts.get("last_name", ""),
-        "mothers_name": name_parts.get("mothers_name", ""),
-        "birth": reformat_birth(item.get("birth_date") or item.get("birth") or ""),
-        "email": (item.get("email") or "").strip(),
+        "name": name_val,
+        "middle_name": middle_val,
+        "last_name": last_name_val,
+        "mothers_name": mothers_val,
+        "birth": birth_val,
+        "email": email_val,
         "phone_prefix": "52",
         "phone": phone,
         "cellphone_prefix": "52",
-        "cellphone": cellphone,
+        "cellphone": cellphone_val,
         # address fields as expected by the inserter
-        "client_address[0].country": addr["country"],
+        "client_address[0].country": addr["country"] or "México",
         "client_address[0].state": addr["state"],
         "client_address[0].city": addr["city"],
         "client_address[0].postal_code": addr["postal_code"],
         "client_address[0].address": addr["address"],
         # other mappings
-        "origin_country": item.get("pais") or item.get("nacionalidad") or "",
-        "nationality": item.get("nacionalidad") or "",
+        "origin_country": item.get("pais") or nationality_val,
+        "nationality": nationality_val,
         "marital_status": item.get("estado_civil") or "",
-        "profession_id": item.get("ocupacion") or "",
+        "profession_id": profession_val,
         "sex": map_sex(item.get("sexo") or ""),
         "client_kind": "M",
     }
