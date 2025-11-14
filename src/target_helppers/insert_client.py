@@ -46,6 +46,7 @@ from .helpers import _set_input_value, _set_react_select_value
 from .tabs.personal import fill_personal_tab
 from .tabs.general import fill_general_tab
 from .tabs.residence import fill_residence_tab
+from .tabs.advertising import fill_advertising_tab
 
 
 def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int = 20) -> Tuple[bool, str]:
@@ -163,6 +164,7 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
     except Exception:
         ok_res, msg_res = False, "exception in fill_residence_tab"
 
+    # Press "Siguiente" two more times (user requested skipping next two tabs)
     for attempt in range(1, 3):
         try:
             ok = _click_siguiente()
@@ -177,6 +179,12 @@ def create_test_client(driver: WebDriver, data: dict | None = None, timeout: int
         except Exception:
             time.sleep(0.5)
 
+    # Fill advertising tab using dedicated filler
+    try:
+        ok_adv, msg_adv = fill_advertising_tab(driver, defaults, timeout)
+    except Exception:
+        ok_adv, msg_adv = False, "exception in fill_advertising_tab"
+        
     return True, driver.current_url
 
 
