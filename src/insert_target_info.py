@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import time
 from dotenv import load_dotenv
+import json
 
 from target_helppers.login import start_and_login
 from target_helppers.insert_client import navigate_to_add_client_page, create_client
@@ -44,18 +45,47 @@ def insert_target_info(headless: bool = False, timeout: int = 20) -> None:
     # At this point, login succeeded
     print('Login successful, current URL:', info)
 
-    # After successful login, navigate to the add-client page
-    nav_success, nav_info = navigate_to_add_client_page(driver)
-    if nav_success:
-        print('Navigated to add-client page:', nav_info)
-        # Create a fake test client on the add-client page
-        create_success, create_info = create_client(driver)
-        if create_success:
-            print('Test client created successfully. Current URL:', create_info)
-        else:
-            print('Test client creation failed:', create_info)
+    # After successful login, load converted clients and create them one-by-one
+    clients_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "output", "converted_clients.json"))
+    clients = []
+    try:
+        with open(clients_path, "r", encoding="utf-8") as f:
+            clients = json.load(f)
+    except FileNotFoundError:
+        print(f'Converted clients file not found: {clients_path}')
+    except Exception as e:
+        print('Error loading converted clients:', e)
+
+    if not clients or not isinstance(clients, list):
+        print('No clients to process. Exiting.')
     else:
-        print('Navigation to add-client page failed:', nav_info)
+        total = len(clients)
+        for idx, client_data in enumerate(clients, start=1):
+            name_disp = client_data.get('name') or client_data.get('full_name') or '(no name)'
+            print(f'[{idx}/{total}] Creating client: {name_disp}')
+
+            # navigate to add-client page for each client to ensure fresh form
+            nav_success, nav_info = navigate_to_add_client_page(driver)
+            if not nav_success:
+                print('Navigation to add-client page failed:', nav_info)
+                # try next client
+                continue
+
+            try:
+                create_success, create_info = create_client(driver, client_data)
+            except Exception as e:
+                create_success, create_info = False, f'exception in create_client: {e}'
+
+            if create_success:
+                print(f'Client created successfully: {create_info}')
+            else:
+                print(f'Failed to create client: {create_info}')
+
+            # small pause between creations
+            try:
+                time.sleep(0.5)
+            except Exception:
+                pass
 
     # TODO: Add logic here to insert target info after successful login.
 
