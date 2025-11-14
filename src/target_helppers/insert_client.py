@@ -23,13 +23,11 @@ TEST_CLIENT_DEFAULTS = {
     "phone": "5551234567",
     "cellphone_prefix": "52",
     "cellphone": "5512345678",
-    # address
     "client_address[0].country": "México",
     "client_address[0].state": "Ciudad de Mexico",
     "client_address[0].city": "Ciudad de Mexico",
     "client_address[0].postal_code": "01234",
     "client_address[0].address": "Av. Test 123",
-    # second tab defaults (moved to single test client object)
     "origin_country": "Venezuela",
     "nationality": "Venezolana",
     "marital_status": "Soltero",
