@@ -11,6 +11,7 @@ import os
 import sys
 from typing import Any, Dict, List
 import uuid
+import re
 
 
 def split_name(fullname: str) -> Dict[str, str]:
@@ -133,8 +134,11 @@ def transform_client(item: Dict[str, Any]) -> Dict[str, Any]:
 
     addr = build_address(item)
 
-    phone = (item.get("telefono_local") or "" ).strip()
-    cellphone = (item.get("telefono_celular") or "" ).strip()
+    raw_phone = (item.get("telefono_local") or "" ).strip()
+    raw_cellphone = (item.get("telefono_celular") or "" ).strip()
+    # keep only digits for phone fields
+    phone = re.sub(r"\D+", "", raw_phone)
+    cellphone = re.sub(r"\D+", "", raw_cellphone)
     # prefer cellphone for `cellphone` and phone for `phone`
     # apply defaults for required fields
     name_val = name_parts.get("name", "") or "Sin Nombre"
