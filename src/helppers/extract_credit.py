@@ -60,6 +60,7 @@ def extract_credit_info(driver) -> Dict[str, str]:
 
     try:
         rows = blk.find_elements(By.XPATH, ".//div[contains(@class,'row') and contains(@class,'no-gutters')]")
+        print(len(rows), "rows found in credit info block")
     except Exception:
         return info
 
@@ -68,9 +69,10 @@ def extract_credit_info(driver) -> Dict[str, str]:
             cols = r.find_elements(By.XPATH, "./div")
             texts = [c.text.strip() for c in cols if (c.text or '').strip()]
             if not texts or len(texts) == 1:
+                print("Skipping row, insufficient texts:", texts)
                 continue
             label = re.sub(r"\s+", " ", texts[0]).strip().lower()
-
+            print("Processing label:", label, "texts:", texts)
             # Helper to safely get nth text
             def t(n: int) -> str:
                 return texts[n] if n < len(texts) else ""
