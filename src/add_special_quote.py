@@ -1420,17 +1420,31 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
             print('No amortizacion data to fill payment table.')
         except Exception as e:
           print('Error filling payment table:', e)
+
+        # despues de llenar la pagina hay que ir de cotizaciones TARGET_PAGE_QUOTES_URL
+        driver.get(os.getenv('TARGET_PAGE_QUOTES_URL'))
+        time.sleep(2)
       except Exception as e:
         print('Error in fill_and_generate:', e)
 
-    # perform the fill+generate with defaults (can be adjusted)
+    # perform the fill+generate for each item in TEST_JSON (login only once)
     try:
-        # defaults requested by user; we'll pass the whole TEST_JSON object
-        time.sleep(1)
+      # defaults requested by user; TEST_JSON may be a list of objects
+      time.sleep(1)
+      if isinstance(TEST_JSON, list):
+        total = len(TEST_JSON)
+        for idx, item in enumerate(TEST_JSON, start=1):
+          print(f'Processing quote {idx}/{total}')
+          try:
+            fill_and_generate(item)
+          except Exception as e:
+            print(f'Error processing quote {idx}:', e)
+          time.sleep(2)
+      else:
         fill_and_generate(TEST_JSON)
         time.sleep(2)
     except Exception as e:
-        print('Error performing actions on special-quote page:', e)
+      print('Error performing actions on special-quote page:', e)
 
     # keep browser open briefly for inspection
     time.sleep(30)
