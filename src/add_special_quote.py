@@ -559,7 +559,7 @@ TEST_JSON = {
         "pago_id": "pago_233419_2030-02-15"
       }
     ]
-  },
+  }
 
 def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
     """Login to target app and navigate to special-quote URL (minimal flow).
@@ -694,59 +694,62 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
         except Exception:
             return False
 
-    def fill_and_generate(lote_code: str, enganche_pct: int, apartado_amt: int, mensualidades: int) -> None:
-        # Try to open the lote select control
+    def fill_and_generate(data: dict) -> None:
+      # Accepts a data object (like TEST_JSON) and extracts the needed fields.
+      try:
+        # project selection moved to helper module
+        # use the shared helper to select the project in the carousel
+        time.sleep(2)
+        selected_info = select_project_in_carousel(driver, 'ukuun', timeout=10)
+        time.sleep(1)
+
+        info = data.get('info_credito', {})
+        lote_code = info.get('unidad') or info.get('lote') or ''
+        # try selecting the lote using the shared helper
         try:
-            # project selection moved to helper module
-            # use the shared helper to select the project in the carousel
-            time.sleep(2)
-            selected_info = select_project_in_carousel(driver, 'ukuun', timeout=10)
-            time.sleep(1)
-            # try selecting the lote using the shared helper
-            try:
-                clicked = select_lote(driver, lote_code, timeout=5)
-            except Exception:
-                clicked = False
-            print('Lote select result:', clicked)
+          clicked = select_lote(driver, lote_code, timeout=5)
+        except Exception:
+          clicked = False
+        print('Lote select result:', clicked)
 
-            time.sleep(0.5)
+        time.sleep(0.5)
 
-            # set enganche porcentaje
-            _set_input_value_by_id('formEnganchePorcentaje', str(enganche_pct))
-            time.sleep(0.5)
-            # set apartado
-            _set_input_value_by_id('formApartado', str(apartado_amt))
-            time.sleep(0.5)
-            # set mensualidades
-            _set_input_value_by_id('formMensualidades', str(mensualidades))
-            time.sleep(0.5)
+        # derive values from the data object
+        enganche_pct = info.get('enganche_%') or info.get('enganche') or ''
+        apartado_amt = info.get('cuota_de_apertura') or info.get('apartado') or ''
+        mensualidades = sum(1 for item in data.get('amortizacion', []) if item.get('tipo') == 'Mensualidad')
 
-            # click Generar button (by text)
-            gen_clicked = _click_element_by_text('Generar')
-            print('Generar click by text result:', gen_clicked)
-            if not gen_clicked:
-                # fallback: click primary button
-                try:
-                    btn = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary')
-                    driver.execute_script('arguments[0].scrollIntoView(true);', btn)
-                    time.sleep(0.1)
-                    btn.click()
-                    print('Generar button clicked (fallback).')
-                except Exception as e:
-                    print('Failed to click Generar button:', e)
-        except Exception as e:
-            print('Error in fill_and_generate:', e)
+        # set enganche porcentaje
+        _set_input_value_by_id('formEnganchePorcentaje', str(enganche_pct))
+        time.sleep(0.5)
+        # set apartado
+        _set_input_value_by_id('formApartado', str(apartado_amt))
+        time.sleep(0.5)
+        # set mensualidades
+        _set_input_value_by_id('formMensualidades', str(mensualidades))
+        time.sleep(0.5)
+
+        # click Generar button (by text)
+        gen_clicked = _click_element_by_text('Generar')
+        print('Generar click by text result:', gen_clicked)
+        if not gen_clicked:
+          # fallback: click primary button
+          try:
+            btn = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary')
+            driver.execute_script('arguments[0].scrollIntoView(true);', btn)
+            time.sleep(0.1)
+            btn.click()
+            print('Generar button clicked (fallback).')
+          except Exception as e:
+            print('Failed to click Generar button:', e)
+      except Exception as e:
+        print('Error in fill_and_generate:', e)
 
     # perform the fill+generate with defaults (can be adjusted)
     try:
-        # defaults requested by user
-        lote_to_select = 'UK-00-0334'
-        enganche_pct = 10
-        apartado_amt = 10
-        mensualidades = 10
-        print(f"Filling special quote: lote={lote_to_select}, enganche={enganche_pct}, apartado={apartado_amt}, mensualidades={mensualidades}")
+        # defaults requested by user; we'll pass the whole TEST_JSON object
         time.sleep(1)
-        fill_and_generate(lote_to_select, enganche_pct, apartado_amt, mensualidades)
+        fill_and_generate(TEST_JSON)
         time.sleep(2)
     except Exception as e:
         print('Error performing actions on special-quote page:', e)
