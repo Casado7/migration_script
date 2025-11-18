@@ -8,6 +8,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from carousel_selector import select_project_in_carousel
 from target_helppers.lote_selector import select_lote
+from fill_payment_table import fill_payment_table
 
 TEST_JSON = {
     "info_credito": {
@@ -762,6 +763,18 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
             print('Generar button clicked (fallback).')
           except Exception as e:
             print('Failed to click Generar button:', e)
+
+        # after generating, try to fill the payment table with amortizacion data
+        try:
+          time.sleep(1)
+          amort = data.get('amortizacion', [])
+          if amort:
+            ok = fill_payment_table(driver, amort)
+            print('fill_payment_table result:', ok)
+          else:
+            print('No amortizacion data to fill payment table.')
+        except Exception as e:
+          print('Error filling payment table:', e)
       except Exception as e:
         print('Error in fill_and_generate:', e)
 
