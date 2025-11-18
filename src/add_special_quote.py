@@ -150,7 +150,7 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
     # perform the fill+generate with defaults (can be adjusted)
     try:
         # defaults requested by user
-        lote_to_select = 'UL-00-0334'
+        lote_to_select = 'UK-00-0334'
         enganche_pct = 10
         apartado_amt = 10
         mensualidades = 10
