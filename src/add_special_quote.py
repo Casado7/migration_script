@@ -9,6 +9,557 @@ from selenium.webdriver.common.keys import Keys
 from carousel_selector import select_project_in_carousel
 from target_helppers.lote_selector import select_lote
 
+TEST_JSON = {
+    "info_credito": {
+      "desarrollo": "UKUUN",
+      "unidad": "111",
+      "etapa": "DIAMANTE II",
+      "superficie": "235.15",
+      "precio_m2": "2,229.58",
+      "precio_lista": "524,285.74",
+      "plan_de_pago": "Generador de ofertas",
+      "cuota_de_apertura": "0.00",
+      "descuento_%": "10.0000",
+      "descuento_m2": "52,428.57",
+      "moneda_del_contrato": "M.N",
+      "precio_venta": "471,857.17",
+      "enganche_%": "10.00",
+      "enganche": "47,185.72",
+      "financiamiento_%": "90.00",
+      "financiamiento": "424,671.45",
+      "costo_escritura": "0.00"
+    },
+    "amortizacion": [
+      {
+        "no": "1",
+        "monto": "47,185.72",
+        "monto_raw": "47,185.72",
+        "fecha": "2025-01-31",
+        "tipo": "Enganche",
+        "pago_id": "pago_233354_2025-01-31"
+      },
+      {
+        "no": "1",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-03-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233355_2025-03-15"
+      },
+      {
+        "no": "2",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-04-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233356_2025-04-15"
+      },
+      {
+        "no": "3",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-05-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233357_2025-05-15"
+      },
+      {
+        "no": "4",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-06-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233358_2025-06-15"
+      },
+      {
+        "no": "5",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-07-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233359_2025-07-15"
+      },
+      {
+        "no": "6",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-08-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233360_2025-08-15"
+      },
+      {
+        "no": "7",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-09-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233361_2025-09-15"
+      },
+      {
+        "no": "8",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-10-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233362_2025-10-15"
+      },
+      {
+        "no": "9",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-11-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233363_2025-11-15"
+      },
+      {
+        "no": "10",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2025-12-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233364_2025-12-15"
+      },
+      {
+        "no": "11",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-01-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233365_2026-01-15"
+      },
+      {
+        "no": "12",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233366_2026-02-15"
+      },
+      {
+        "no": "13",
+        "monto": "28,311.43",
+        "monto_raw": "28,311.43",
+        "fecha": "2026-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233367_2026-02-15"
+      },
+      {
+        "no": "14",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-03-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233368_2026-03-15"
+      },
+      {
+        "no": "15",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-04-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233369_2026-04-15"
+      },
+      {
+        "no": "16",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-05-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233370_2026-05-15"
+      },
+      {
+        "no": "17",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-06-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233371_2026-06-15"
+      },
+      {
+        "no": "18",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-07-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233372_2026-07-15"
+      },
+      {
+        "no": "19",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-08-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233373_2026-08-15"
+      },
+      {
+        "no": "20",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-09-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233374_2026-09-15"
+      },
+      {
+        "no": "21",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-10-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233375_2026-10-15"
+      },
+      {
+        "no": "22",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-11-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233376_2026-11-15"
+      },
+      {
+        "no": "23",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2026-12-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233377_2026-12-15"
+      },
+      {
+        "no": "24",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-01-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233378_2027-01-15"
+      },
+      {
+        "no": "25",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233379_2027-02-15"
+      },
+      {
+        "no": "26",
+        "monto": "28,311.43",
+        "monto_raw": "28,311.43",
+        "fecha": "2027-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233380_2027-02-15"
+      },
+      {
+        "no": "27",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-03-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233381_2027-03-15"
+      },
+      {
+        "no": "28",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-04-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233382_2027-04-15"
+      },
+      {
+        "no": "29",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-05-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233383_2027-05-15"
+      },
+      {
+        "no": "30",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-06-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233384_2027-06-15"
+      },
+      {
+        "no": "31",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-07-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233385_2027-07-15"
+      },
+      {
+        "no": "32",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-08-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233386_2027-08-15"
+      },
+      {
+        "no": "33",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-09-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233387_2027-09-15"
+      },
+      {
+        "no": "34",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-10-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233388_2027-10-15"
+      },
+      {
+        "no": "35",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-11-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233389_2027-11-15"
+      },
+      {
+        "no": "36",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2027-12-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233390_2027-12-15"
+      },
+      {
+        "no": "37",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-01-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233391_2028-01-15"
+      },
+      {
+        "no": "38",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233392_2028-02-15"
+      },
+      {
+        "no": "39",
+        "monto": "28,311.43",
+        "monto_raw": "28,311.43",
+        "fecha": "2028-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233393_2028-02-15"
+      },
+      {
+        "no": "40",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-03-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233394_2028-03-15"
+      },
+      {
+        "no": "41",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-04-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233395_2028-04-15"
+      },
+      {
+        "no": "42",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-05-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233396_2028-05-15"
+      },
+      {
+        "no": "43",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-06-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233397_2028-06-15"
+      },
+      {
+        "no": "44",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-07-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233398_2028-07-15"
+      },
+      {
+        "no": "45",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-08-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233399_2028-08-15"
+      },
+      {
+        "no": "46",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-09-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233400_2028-09-15"
+      },
+      {
+        "no": "47",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-10-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233401_2028-10-15"
+      },
+      {
+        "no": "48",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-11-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233402_2028-11-15"
+      },
+      {
+        "no": "49",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2028-12-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233403_2028-12-15"
+      },
+      {
+        "no": "50",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-01-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233404_2029-01-15"
+      },
+      {
+        "no": "51",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233405_2029-02-15"
+      },
+      {
+        "no": "52",
+        "monto": "28,311.43",
+        "monto_raw": "28,311.43",
+        "fecha": "2029-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233406_2029-02-15"
+      },
+      {
+        "no": "53",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-03-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233407_2029-03-15"
+      },
+      {
+        "no": "54",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-04-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233408_2029-04-15"
+      },
+      {
+        "no": "55",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-05-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233409_2029-05-15"
+      },
+      {
+        "no": "56",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-06-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233410_2029-06-15"
+      },
+      {
+        "no": "57",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-07-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233411_2029-07-15"
+      },
+      {
+        "no": "58",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-08-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233412_2029-08-15"
+      },
+      {
+        "no": "59",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-09-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233413_2029-09-15"
+      },
+      {
+        "no": "60",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-10-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233414_2029-10-15"
+      },
+      {
+        "no": "61",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-11-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233415_2029-11-15"
+      },
+      {
+        "no": "62",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2029-12-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233416_2029-12-15"
+      },
+      {
+        "no": "63",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2030-01-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233417_2030-01-15"
+      },
+      {
+        "no": "64",
+        "monto": "4,718.57",
+        "monto_raw": "4,718.57",
+        "fecha": "2030-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233418_2030-02-15"
+      },
+      {
+        "no": "65",
+        "monto": "28,311.53",
+        "monto_raw": "28,311.53",
+        "fecha": "2030-02-15",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_233419_2030-02-15"
+      }
+    ]
+  },
 
 def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
     """Login to target app and navigate to special-quote URL (minimal flow).
