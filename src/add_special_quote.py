@@ -771,6 +771,23 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
           if amort:
             ok = fill_payment_table(driver, amort)
             print('fill_payment_table result:', ok)
+            # After filling the payment table, click the "Ver corrida final" button
+            try:
+              time.sleep(0.5)
+              vc_clicked = _click_element_by_text('Ver corrida final')
+              print('Ver corrida final click by text result:', vc_clicked)
+              if not vc_clicked:
+                try:
+                  btn = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-success')
+                  driver.execute_script('arguments[0].scrollIntoView(true);', btn)
+                  time.sleep(0.1)
+                  btn.click()
+                  print('Ver corrida final button clicked (fallback).')
+                except Exception as e:
+                  print('Failed to click Ver corrida final button (fallback):', e)
+              time.sleep(1)
+            except Exception as e:
+              print('Error clicking Ver corrida final button:', e)
           else:
             print('No amortizacion data to fill payment table.')
         except Exception as e:
