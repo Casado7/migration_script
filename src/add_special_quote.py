@@ -14,6 +14,7 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
     - TARGET_USERNAME
     - TARGET_PASSWORD
     - TARGET_PAGE_ADD_SPECIAL_QUOTE_URL
+    After navigation it will try to select a lote and fill amounts then press "Generar".
     """
     load_dotenv()
     login_url = os.getenv('TARGET_PAGE_LOGIN_URL')
@@ -60,6 +61,113 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
         print('Current URL after navigate:', driver.current_url)
     except Exception as e:
         print('Error navigating to special-quote URL:', e)
+
+    def _set_input_value_by_id(el_id: str, value) -> None:
+        # set value and dispatch events so React picks it up
+        js = (
+            "var el = document.getElementById(arguments[0]);"
+            "if(!el) return false;"
+            "el.focus && el.focus();"
+            "el.value = arguments[1];"
+            "el.dispatchEvent(new Event('input', { bubbles: true }));"
+            "el.dispatchEvent(new Event('change', { bubbles: true }));"
+            "el.blur && el.blur();"
+            "return true;"
+        )
+        try:
+            driver.execute_script(js, el_id, value)
+        except Exception:
+            pass
+
+    def _click_element_by_text(text: str) -> bool:
+        # find a visible element containing the text and click it
+        js = (
+            "var items = Array.from(document.querySelectorAll('*')).filter(function(n){"
+            "  return n.textContent && n.textContent.trim() === arguments[0];"
+            "});"
+            "for(var i=0;i<items.length;i++) {"
+            "  var r = items[i].getBoundingClientRect();"
+            "  if(r.width>0 && r.height>0) { items[i].click(); return true; }"
+            "} return false;"
+        )
+        try:
+            return bool(driver.execute_script(js, text))
+        except Exception:
+            return False
+
+    def fill_and_generate(lote_code: str, enganche_pct: int, apartado_amt: int, mensualidades: int) -> None:
+        # Try to open the lote select control
+        try:
+            # click placeholder or control
+            try:
+                ctrl = driver.find_element_by_id('react-select-2-placeholder')
+                driver.execute_script('arguments[0].scrollIntoView(true);', ctrl)
+                time.sleep(0.2)
+                ctrl.click()
+                time.sleep(0.5)
+            except Exception:
+                # fallback: click any react-select control
+                try:
+                    ctrl2 = driver.find_element_by_css_selector('.react-select-sm__control')
+                    driver.execute_script('arguments[0].scrollIntoView(true);', ctrl2)
+                    time.sleep(0.2)
+                    ctrl2.click()
+                    time.sleep(0.5)
+                except Exception:
+                    pass
+
+            # try clicking the option with exact text
+            clicked = _click_element_by_text(lote_code)
+            if not clicked:
+                # try partial match: find element that contains the code
+                js_contains = (
+                    "var items = Array.from(document.querySelectorAll('*')).filter(function(n){return n.textContent && n.textContent.indexOf(arguments[0])>-1});"
+                    "for(var i=0;i<items.length;i++){var r=items[i].getBoundingClientRect(); if(r.width>0&&r.height>0){items[i].click();return true}} return false;"
+                )
+                try:
+                    clicked = bool(driver.execute_script(js_contains, lote_code))
+                except Exception:
+                    clicked = False
+
+            time.sleep(0.5)
+
+            # set enganche porcentaje
+            _set_input_value_by_id('formEnganchePorcentaje', str(enganche_pct))
+            time.sleep(0.2)
+            # set apartado
+            _set_input_value_by_id('formApartado', str(apartado_amt))
+            time.sleep(0.2)
+            # set mensualidades
+            _set_input_value_by_id('formMensualidades', str(mensualidades))
+            time.sleep(0.2)
+
+            # click Generar button (by text)
+            gen_clicked = _click_element_by_text('Generar')
+            if not gen_clicked:
+                # fallback: click primary button
+                try:
+                    btn = driver.find_element_by_css_selector('button.btn.btn-primary')
+                    driver.execute_script('arguments[0].scrollIntoView(true);', btn)
+                    time.sleep(0.1)
+                    btn.click()
+                except Exception as e:
+                    print('Failed to click Generar button:', e)
+        except Exception as e:
+            print('Error in fill_and_generate:', e)
+
+    # perform the fill+generate with defaults (can be adjusted)
+    try:
+        # defaults requested by user
+        lote_to_select = 'UL-00-0334'
+        enganche_pct = 10
+        apartado_amt = 10
+        mensualidades = 10
+        print(f"Filling special quote: lote={lote_to_select}, enganche={enganche_pct}, apartado={apartado_amt}, mensualidades={mensualidades}")
+        time.sleep(1)
+        fill_and_generate(lote_to_select, enganche_pct, apartado_amt, mensualidades)
+        time.sleep(2)
+    except Exception as e:
+        print('Error performing actions on special-quote page:', e)
 
     # keep browser open briefly for inspection
     time.sleep(10)
