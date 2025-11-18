@@ -1226,22 +1226,6 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
 
     print('Login successful, current URL:', info)
 
-    target_url = os.getenv('TARGET_PAGE_ADD_SPECIAL_QUOTE_URL')
-    if not target_url:
-        print('TARGET_PAGE_ADD_SPECIAL_QUOTE_URL not set in .env')
-        try:
-            driver.quit()
-        except Exception:
-            pass
-        return
-
-    try:
-        print('Navigating to special-quote page:', target_url)
-        driver.get(target_url)
-        time.sleep(2)
-        print('Current URL after navigate:', driver.current_url)
-    except Exception as e:
-        print('Error navigating to special-quote URL:', e)
 
     def _set_input_value_by_id(el_id: str, value) -> None:
         # Try to simulate a real user typing so React picks up changes.
@@ -1323,6 +1307,20 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
     def fill_and_generate(data: dict) -> None:
       # Accepts a data object (like TEST_JSON) and extracts the needed fields.
       try:
+        # Ensure we're on the "add special quote" page before interacting
+        add_page = os.getenv('TARGET_PAGE_ADD_SPECIAL_QUOTE_URL')
+        if add_page:
+          try:
+            print('Navigating to add special-quote page for this quote:', add_page)
+            driver.get(add_page)
+            # small wait to allow page scripts to load
+            time.sleep(1.5)
+            print('Current URL (add page):', driver.current_url)
+          except Exception as e:
+            print('Error navigating to add special-quote URL inside fill_and_generate:', e)
+        else:
+          print('TARGET_PAGE_ADD_SPECIAL_QUOTE_URL not set; continuing on current page')
+
         # project selection moved to helper module
         # use the shared helper to select the project in the carousel
         time.sleep(2)
@@ -1420,7 +1418,7 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
             print('No amortizacion data to fill payment table.')
         except Exception as e:
           print('Error filling payment table:', e)
-
+        time.sleep(2)
         # despues de llenar la pagina hay que ir de cotizaciones TARGET_PAGE_QUOTES_URL
         driver.get(os.getenv('TARGET_PAGE_QUOTES_URL'))
         time.sleep(2)
