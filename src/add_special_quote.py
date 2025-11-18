@@ -1323,7 +1323,7 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
 
         # project selection moved to helper module
         # use the shared helper to select the project in the carousel
-        time.sleep(2)
+        time.sleep(5)
         selected_info = select_project_in_carousel(driver, 'ukuun', timeout=10)
         time.sleep(1)
 
