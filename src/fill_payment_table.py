@@ -73,6 +73,74 @@ def fill_payment_table(driver, amortizacion: List[Dict], delay: float = 0.4) -> 
         except Exception:
             rows_count = 0
 
+        # Ensure DOM rows count matches amortizacion length: add or remove rows as needed
+        desired = len(tipos)
+        # If rows are missing, click the "Agregar Cuota" button as many times as necessary
+        if rows_count < desired:
+            need = desired - rows_count
+            for _ in range(need):
+                try:
+                    # try to find a visible button with the exact text or with btn-info class
+                    btns = driver.find_elements(By.XPATH, "//button[contains(normalize-space(.),'Agregar Cuota') or contains(@class,'btn-info')]")
+                    clicked = False
+                    for b in btns:
+                        try:
+                            if b.is_displayed():
+                                driver.execute_script('arguments[0].scrollIntoView(true);', b)
+                                time.sleep(0.05)
+                                b.click()
+                                clicked = True
+                                break
+                        except Exception:
+                            continue
+                    if not clicked:
+                        # fallback: try clicking by JS searching for a button text
+                        driver.execute_script("var btn=document.evaluate(\"//button[contains(normalize-space(.),'Agregar Cuota')]\", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; if(btn){btn.click();}")
+                    time.sleep(0.3)
+                except Exception as e:
+                    print('Error clicking Agregar Cuota:', e)
+            try:
+                rows_count = driver.execute_script("var tb=document.querySelector('table.table tbody'); if(!tb) return 0; return tb.querySelectorAll('tr').length;")
+            except Exception:
+                pass
+
+        # If there are extra rows, remove the trailing ones
+        if rows_count > desired:
+            excess = rows_count - desired
+            for _ in range(excess):
+                try:
+                    rows = driver.find_elements(By.CSS_SELECTOR, 'table.table tbody tr')
+                    if not rows:
+                        break
+                    last = rows[-1]
+                    removed = False
+                    try:
+                        btn = last.find_element(By.XPATH, ".//button[contains(., 'Eliminar') or contains(@class,'btn-danger')]")
+                        driver.execute_script('arguments[0].scrollIntoView(true);', btn)
+                        time.sleep(0.05)
+                        btn.click()
+                        removed = True
+                    except Exception:
+                        removed = False
+
+                    if not removed:
+                        try:
+                            driver.execute_script("var r=document.querySelectorAll('table.table tbody tr'); if(r.length>0){ var el=r[r.length-1]; el.parentNode.removeChild(el); }")
+                            removed = True
+                        except Exception as e:
+                            print('Fallback remove failed:', e)
+                            break
+
+                    time.sleep(0.2)
+                except Exception as e:
+                    print('Error removing extra row:', e)
+                    break
+
+            try:
+                rows_count = driver.execute_script("var tb=document.querySelector('table.table tbody'); if(!tb) return 0; return tb.querySelectorAll('tr').length;")
+            except Exception:
+                pass
+
         n = min(rows_count, len(tipos))
         per_row_changes = []
 
@@ -206,6 +274,43 @@ def fill_payment_table(driver, amortizacion: List[Dict], delay: float = 0.4) -> 
             final_rows = driver.execute_script("var tb=document.querySelector('table.table tbody'); if(!tb) return 0; return tb.querySelectorAll('tr').length;")
         except Exception:
             final_rows = rows_count
+
+        # If there are extra rows at the end, remove them (try UI delete first, fallback to DOM remove)
+        while final_rows > amort_len:
+            try:
+                rows = driver.find_elements(By.CSS_SELECTOR, 'table.table tbody tr')
+                if not rows:
+                    break
+                last = rows[-1]
+                removed = False
+                try:
+                    # try common delete buttons/links inside the row
+                    btn = last.find_element(By.XPATH, ".//button[contains(., 'Eliminar') or contains(., 'Eliminar cuota') or contains(@class,'btn-danger') or contains(@aria-label,'Eliminar')]")
+                    driver.execute_script('arguments[0].scrollIntoView(true);', btn)
+                    time.sleep(0.05)
+                    btn.click()
+                    removed = True
+                except Exception:
+                    removed = False
+
+                if not removed:
+                    # fallback: remove last row via JS
+                    try:
+                        driver.execute_script("var r=document.querySelectorAll('table.table tbody tr'); if(r.length>0){ var el=r[r.length-1]; el.parentNode.removeChild(el); }")
+                        removed = True
+                    except Exception as e:
+                        print('Fallback remove failed:', e)
+                        break
+
+                time.sleep(0.2)
+            except Exception as e:
+                print('Error removing extra row:', e)
+                break
+
+            try:
+                final_rows = driver.execute_script("var tb=document.querySelector('table.table tbody'); if(!tb) return 0; return tb.querySelectorAll('tr').length;")
+            except Exception:
+                break
 
         # debug: dump table rows after filling (summary)
         try:
