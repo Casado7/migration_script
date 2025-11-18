@@ -4,6 +4,8 @@ import time
 from dotenv import load_dotenv
 
 from target_helppers.login import start_and_login
+from selenium.webdriver.common.by import By
+from carousel_selector import select_project_in_carousel
 
 
 def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
@@ -98,26 +100,14 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
     def fill_and_generate(lote_code: str, enganche_pct: int, apartado_amt: int, mensualidades: int) -> None:
         # Try to open the lote select control
         try:
-            # click placeholder or control
-            try:
-                ctrl = driver.find_element_by_id('react-select-2-placeholder')
-                driver.execute_script('arguments[0].scrollIntoView(true);', ctrl)
-                time.sleep(0.2)
-                ctrl.click()
-                time.sleep(0.5)
-            except Exception:
-                # fallback: click any react-select control
-                try:
-                    ctrl2 = driver.find_element_by_css_selector('.react-select-sm__control')
-                    driver.execute_script('arguments[0].scrollIntoView(true);', ctrl2)
-                    time.sleep(0.2)
-                    ctrl2.click()
-                    time.sleep(0.5)
-                except Exception:
-                    pass
+            # project selection moved to helper module
+            # use the shared helper to select the project in the carousel
+            selected_info = select_project_in_carousel(driver, 'ukuun', timeout=10)
+            print('Project select result:', selected_info)
 
             # try clicking the option with exact text
             clicked = _click_element_by_text(lote_code)
+            print('Lote click exact match result:', clicked)
             if not clicked:
                 # try partial match: find element that contains the code
                 js_contains = (
@@ -143,13 +133,15 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
 
             # click Generar button (by text)
             gen_clicked = _click_element_by_text('Generar')
+            print('Generar click by text result:', gen_clicked)
             if not gen_clicked:
                 # fallback: click primary button
                 try:
-                    btn = driver.find_element_by_css_selector('button.btn.btn-primary')
+                    btn = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary')
                     driver.execute_script('arguments[0].scrollIntoView(true);', btn)
                     time.sleep(0.1)
                     btn.click()
+                    print('Generar button clicked (fallback).')
                 except Exception as e:
                     print('Failed to click Generar button:', e)
         except Exception as e:
