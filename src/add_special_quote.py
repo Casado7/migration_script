@@ -62,7 +62,7 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
         print('Error navigating to special-quote URL:', e)
 
     # keep browser open briefly for inspection
-    time.sleep(2)
+    time.sleep(10)
     try:
         driver.quit()
     except Exception:
