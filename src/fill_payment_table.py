@@ -45,7 +45,7 @@ def fill_payment_table(driver, amortizacion: List[Dict], delay: float = 0.4) -> 
             )
         except Exception:
             rows_before = []
-        print('Payment table BEFORE:', rows_before)
+        #('Payment table BEFORE:', rows_before)
 
         # Build arrays for JS: tipo, concepto, monto
         tipos = []
@@ -319,10 +319,10 @@ def fill_payment_table(driver, amortizacion: List[Dict], delay: float = 0.4) -> 
             )
         except Exception:
             rows_after = []
-        print('Payment table AFTER:', rows_after)
-        print('Per-row changes:')
-        for ch in per_row_changes:
-            print(ch)
+        #print('Payment table AFTER:', rows_after)
+        #print('Per-row changes:')
+        #for ch in per_row_changes:
+        #    print(ch)
 
         res = {'rows': final_rows, 'filled': len(per_row_changes)}
         # debug: dump table rows after filling
@@ -332,7 +332,7 @@ def fill_payment_table(driver, amortizacion: List[Dict], delay: float = 0.4) -> 
             )
         except Exception:
             rows_after = []
-        print('Payment table AFTER:', rows_after)
+        #print('Payment table AFTER:', rows_after)
         # res should be a dict-like object with keys 'rows' and 'filled'
         rows_count = 0
         filled = 0
