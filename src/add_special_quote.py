@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from target_helppers.login import start_and_login
 from selenium.webdriver.common.by import By
 from carousel_selector import select_project_in_carousel
+from target_helppers.lote_selector import select_lote
 
 
 def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
@@ -105,19 +106,12 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
             time.sleep(2)
             selected_info = select_project_in_carousel(driver, 'ukuun', timeout=10)
             time.sleep(1)
-            # try clicking the option with exact text
-            clicked = _click_element_by_text(lote_code)
-            print('Lote click exact match result:', clicked)
-            if not clicked:
-                # try partial match: find element that contains the code
-                js_contains = (
-                    "var items = Array.from(document.querySelectorAll('*')).filter(function(n){return n.textContent && n.textContent.indexOf(arguments[0])>-1});"
-                    "for(var i=0;i<items.length;i++){var r=items[i].getBoundingClientRect(); if(r.width>0&&r.height>0){items[i].click();return true}} return false;"
-                )
-                try:
-                    clicked = bool(driver.execute_script(js_contains, lote_code))
-                except Exception:
-                    clicked = False
+            # try selecting the lote using the shared helper
+            try:
+                clicked = select_lote(driver, lote_code, timeout=5)
+            except Exception:
+                clicked = False
+            print('Lote select result:', clicked)
 
             time.sleep(0.5)
 
