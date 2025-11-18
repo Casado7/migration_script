@@ -10,7 +10,8 @@ from carousel_selector import select_project_in_carousel
 from target_helppers.lote_selector import select_lote
 from fill_payment_table import fill_payment_table
 
-TEST_JSON = {
+TEST_JSON = [
+  {
     "info_credito": {
       "desarrollo": "UKUUN",
       "unidad": "111",
@@ -560,7 +561,631 @@ TEST_JSON = {
         "pago_id": "pago_233419_2030-02-15"
       }
     ]
-  }
+  },
+  {
+    "info_credito": {
+      "desarrollo": "UKUUN",
+      "unidad": "152",
+      "etapa": "DIAMANTE I",
+      "superficie": "235.80",
+      "precio_m2": "2,189.32",
+      "precio_lista": "516,241.66",
+      "plan_de_pago": "72M 10REs",
+      "cuota_de_apertura": "0.00",
+      "descuento_%": "0.0000",
+      "descuento_m2": "0.00",
+      "moneda_del_contrato": "M.N",
+      "precio_venta": "516,241.66",
+      "enganche_%": "5.56",
+      "enganche": "25,812.05",
+      "financiamiento_%": "94.44",
+      "financiamiento": "438,805.44",
+      "costo_escritura": "10.00"
+    },
+    "amortizacion": [
+      {
+        "no": "1",
+        "monto": "25,812.05",
+        "monto_raw": "25,812.05",
+        "fecha": "2024-06-30",
+        "tipo": "Enganche",
+        "pago_id": "pago_232110_2024-06-30"
+      },
+      {
+        "no": "1",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2024-07-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232111_2024-07-30"
+      },
+      {
+        "no": "2",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2024-08-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232112_2024-08-30"
+      },
+      {
+        "no": "3",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2024-09-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232113_2024-09-30"
+      },
+      {
+        "no": "4",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2024-10-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232114_2024-10-30"
+      },
+      {
+        "no": "5",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2024-11-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232115_2024-11-30"
+      },
+      {
+        "no": "6",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2024-12-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232116_2024-12-30"
+      },
+      {
+        "no": "7",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-01-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232117_2025-01-30"
+      },
+      {
+        "no": "8",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-02-28",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232118_2025-02-28"
+      },
+      {
+        "no": "9",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-03-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232119_2025-03-30"
+      },
+      {
+        "no": "10",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-04-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232120_2025-04-30"
+      },
+      {
+        "no": "11",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-05-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232121_2025-05-30"
+      },
+      {
+        "no": "12",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-06-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232122_2025-06-30"
+      },
+      {
+        "no": "13",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-07-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232123_2025-07-30"
+      },
+      {
+        "no": "14",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-08-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232124_2025-08-30"
+      },
+      {
+        "no": "15",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-09-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232125_2025-09-30"
+      },
+      {
+        "no": "16",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-10-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232126_2025-10-30"
+      },
+      {
+        "no": "17",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-11-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232127_2025-11-30"
+      },
+      {
+        "no": "18",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2025-12-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232128_2025-12-30"
+      },
+      {
+        "no": "19",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-01-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232129_2026-01-30"
+      },
+      {
+        "no": "20",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-02-28",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232130_2026-02-28"
+      },
+      {
+        "no": "21",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-03-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232131_2026-03-30"
+      },
+      {
+        "no": "22",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-04-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232132_2026-04-30"
+      },
+      {
+        "no": "23",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-05-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232133_2026-05-30"
+      },
+      {
+        "no": "24",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-06-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232134_2026-06-30"
+      },
+      {
+        "no": "25",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-07-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232135_2026-07-30"
+      },
+      {
+        "no": "26",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-08-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232136_2026-08-30"
+      },
+      {
+        "no": "27",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-09-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232137_2026-09-30"
+      },
+      {
+        "no": "28",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-10-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232138_2026-10-30"
+      },
+      {
+        "no": "29",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-11-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232139_2026-11-30"
+      },
+      {
+        "no": "30",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2026-12-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232140_2026-12-30"
+      },
+      {
+        "no": "31",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-01-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232141_2027-01-30"
+      },
+      {
+        "no": "32",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-02-28",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232142_2027-02-28"
+      },
+      {
+        "no": "33",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-03-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232143_2027-03-30"
+      },
+      {
+        "no": "34",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-04-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232144_2027-04-30"
+      },
+      {
+        "no": "35",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-05-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232145_2027-05-30"
+      },
+      {
+        "no": "36",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-06-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232146_2027-06-30"
+      },
+      {
+        "no": "37",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-07-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232147_2027-07-30"
+      },
+      {
+        "no": "38",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-08-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232148_2027-08-30"
+      },
+      {
+        "no": "39",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-09-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232149_2027-09-30"
+      },
+      {
+        "no": "40",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-10-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232150_2027-10-30"
+      },
+      {
+        "no": "41",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-11-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232151_2027-11-30"
+      },
+      {
+        "no": "42",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2027-12-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232152_2027-12-30"
+      },
+      {
+        "no": "43",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-01-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232153_2028-01-30"
+      },
+      {
+        "no": "44",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-02-28",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232154_2028-02-28"
+      },
+      {
+        "no": "45",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-03-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232155_2028-03-30"
+      },
+      {
+        "no": "46",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-04-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232156_2028-04-30"
+      },
+      {
+        "no": "47",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-05-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232157_2028-05-30"
+      },
+      {
+        "no": "48",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-06-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232158_2028-06-30"
+      },
+      {
+        "no": "49",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-07-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232159_2028-07-30"
+      },
+      {
+        "no": "50",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-08-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232160_2028-08-30"
+      },
+      {
+        "no": "51",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-09-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232161_2028-09-30"
+      },
+      {
+        "no": "52",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-10-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232162_2028-10-30"
+      },
+      {
+        "no": "53",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-11-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232163_2028-11-30"
+      },
+      {
+        "no": "54",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2028-12-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232164_2028-12-30"
+      },
+      {
+        "no": "55",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-01-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232165_2029-01-30"
+      },
+      {
+        "no": "56",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-02-28",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232166_2029-02-28"
+      },
+      {
+        "no": "57",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-03-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232167_2029-03-30"
+      },
+      {
+        "no": "58",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-04-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232168_2029-04-30"
+      },
+      {
+        "no": "59",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-05-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232169_2029-05-30"
+      },
+      {
+        "no": "60",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-06-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232170_2029-06-30"
+      },
+      {
+        "no": "61",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-07-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232171_2029-07-30"
+      },
+      {
+        "no": "62",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-08-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232172_2029-08-30"
+      },
+      {
+        "no": "63",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-09-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232173_2029-09-30"
+      },
+      {
+        "no": "64",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-10-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232174_2029-10-30"
+      },
+      {
+        "no": "65",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-11-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232175_2029-11-30"
+      },
+      {
+        "no": "66",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2029-12-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232176_2029-12-30"
+      },
+      {
+        "no": "67",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2030-01-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232177_2030-01-30"
+      },
+      {
+        "no": "68",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2030-02-28",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232178_2030-02-28"
+      },
+      {
+        "no": "69",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2030-03-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232179_2030-03-30"
+      },
+      {
+        "no": "70",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2030-04-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232180_2030-04-30"
+      },
+      {
+        "no": "71",
+        "monto": "6,100.00",
+        "monto_raw": "6,100.00",
+        "fecha": "2030-05-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232181_2030-05-30"
+      },
+      {
+        "no": "72",
+        "monto": "5,705.44",
+        "monto_raw": "5,705.44",
+        "fecha": "2030-06-30",
+        "tipo": "Mensualidad",
+        "pago_id": "pago_232182_2030-06-30"
+      },
+      {
+        "no": "1",
+        "monto": "51,624.17",
+        "monto_raw": "51,624.17",
+        "fecha": "2030-07-30",
+        "tipo": "Entrega",
+        "pago_id": "pago_232183_2030-07-30"
+      },
+      {
+        "no": "1",
+        "monto": "10.00",
+        "monto_raw": "10.00",
+        "fecha": "2030-08-30",
+        "tipo": "Capital Adelantado",
+        "pago_id": "pago_232184_2030-08-30"
+      }
+    ]
+  },
+]
 
 def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
     """Login to target app and navigate to special-quote URL (minimal flow).
