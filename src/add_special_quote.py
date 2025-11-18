@@ -711,6 +711,9 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
           clicked = select_lote(driver, lote_code, timeout=5)
         except Exception:
           clicked = False
+          # salir del script e imprimir el nombre del lote que no se encontrado
+          print(f"Lote no encontrado: {lote_code}")
+          return
         print('Lote select result:', clicked)
 
         time.sleep(0.5)
