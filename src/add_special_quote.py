@@ -117,13 +117,13 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
 
             # set enganche porcentaje
             _set_input_value_by_id('formEnganchePorcentaje', str(enganche_pct))
-            time.sleep(0.2)
+            time.sleep(0.5)
             # set apartado
             _set_input_value_by_id('formApartado', str(apartado_amt))
-            time.sleep(0.2)
+            time.sleep(0.5)
             # set mensualidades
             _set_input_value_by_id('formMensualidades', str(mensualidades))
-            time.sleep(0.2)
+            time.sleep(0.5)
 
             # click Generar button (by text)
             gen_clicked = _click_element_by_text('Generar')
@@ -156,7 +156,7 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
         print('Error performing actions on special-quote page:', e)
 
     # keep browser open briefly for inspection
-    time.sleep(10)
+    time.sleep(30)
     try:
         driver.quit()
     except Exception:
