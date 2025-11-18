@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 from target_helppers.login import start_and_login
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from carousel_selector import select_project_in_carousel
 from target_helppers.lote_selector import select_lote
 
@@ -66,21 +67,65 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
         print('Error navigating to special-quote URL:', e)
 
     def _set_input_value_by_id(el_id: str, value) -> None:
-        # set value and dispatch events so React picks it up
-        js = (
-            "var el = document.getElementById(arguments[0]);"
-            "if(!el) return false;"
-            "el.focus && el.focus();"
-            "el.value = arguments[1];"
-            "el.dispatchEvent(new Event('input', { bubbles: true }));"
-            "el.dispatchEvent(new Event('change', { bubbles: true }));"
-            "el.blur && el.blur();"
-            "return true;"
-        )
+        # Try to simulate a real user typing so React picks up changes.
         try:
-            driver.execute_script(js, el_id, value)
+            el = driver.find_element(By.ID, el_id)
+            # make sure element is visible
+            try:
+                driver.execute_script('arguments[0].scrollIntoView(true);', el)
+            except Exception:
+                pass
+            time.sleep(0.05)
+            try:
+                el.click()
+            except Exception:
+                try:
+                    driver.execute_script('arguments[0].focus && arguments[0].focus();', el)
+                except Exception:
+                    pass
+            try:
+                el.clear()
+            except Exception:
+                # some inputs may not support clear(); ignore
+                pass
+            s = str(value)
+            for ch in s:
+                try:
+                    el.send_keys(ch)
+                except Exception:
+                    # if send_keys fails for this element, fall back to JS
+                    raise
+                time.sleep(0.04)
+            # send a TAB to blur and trigger change handlers
+            try:
+                el.send_keys(Keys.TAB)
+            except Exception:
+                pass
+            # Also dispatch input/change events via JS as extra assurance
+            try:
+                driver.execute_script(
+                    "var e=arguments[0]; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true }));",
+                    el,
+                )
+            except Exception:
+                pass
+            return
         except Exception:
-            pass
+            # fallback: set via JS (previous approach)
+            js = (
+                "var el = document.getElementById(arguments[0]);"
+                "if(!el) return false;"
+                "el.focus && el.focus();"
+                "el.value = arguments[1];"
+                "el.dispatchEvent(new Event('input', { bubbles: true }));"
+                "el.dispatchEvent(new Event('change', { bubbles: true }));"
+                "el.blur && el.blur();"
+                "return true;"
+            )
+            try:
+                driver.execute_script(js, el_id, value)
+            except Exception:
+                pass
 
     def _click_element_by_text(text: str) -> bool:
         # find a visible element containing the text and click it
