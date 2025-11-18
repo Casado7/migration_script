@@ -719,6 +719,26 @@ def add_special_quote(headless: bool = False, timeout: int = 20) -> None:
         apartado_amt = info.get('cuota_de_apertura') or info.get('apartado') or ''
         mensualidades = sum(1 for item in data.get('amortizacion', []) if item.get('tipo') == 'Mensualidad')
 
+        # normalize numeric strings (remove commas, percent signs)
+        def _normalize_num(x):
+          if x is None:
+            return ''
+          s = str(x).strip()
+          s = s.replace('%', '')
+          s = s.replace(',', '')
+          return s
+
+        precio_lista = _normalize_num(info.get('precio_lista') or info.get('precioLista'))
+        precio_venta = _normalize_num(info.get('precio_venta') or info.get('precioVenta'))
+
+        # set Monto total del lote and Precio de Venta before other fields
+        if precio_lista:
+          _set_input_value_by_id('formMontoTotal', precio_lista)
+          time.sleep(0.4)
+        if precio_venta:
+          _set_input_value_by_id('formPrecioVenta', precio_venta)
+          time.sleep(0.4)
+
         # set enganche porcentaje
         _set_input_value_by_id('formEnganchePorcentaje', str(enganche_pct))
         time.sleep(0.5)
