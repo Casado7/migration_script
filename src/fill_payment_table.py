@@ -34,6 +34,15 @@ def fill_payment_table(driver, amortizacion: List[Dict], delay: float = 0.25) ->
 
         amort_len = len(amortizacion)
 
+        # debug: dump table rows before filling
+        try:
+            rows_before = driver.execute_script(
+                "var tb=document.querySelector('table.table tbody'); if(!tb) return []; return Array.from(tb.querySelectorAll('tr')).map(function(r){ var sel=r.querySelector('select.form-select'); var tipo=sel?sel.value:(r.querySelector('select')?r.querySelector('select').value:''); var text=r.querySelector('input[type=text]'); var concept=text?text.value:''; var num=r.querySelector('input[type=number]'); var monto=num?num.value:''; return {tipo:tipo, concept:concept, monto:monto}; });"
+            )
+        except Exception:
+            rows_before = []
+        print('Payment table BEFORE:', rows_before)
+
         # Build arrays for JS: tipo, concepto, monto
         tipos = []
         conceptos = []
@@ -72,6 +81,14 @@ def fill_payment_table(driver, amortizacion: List[Dict], delay: float = 0.25) ->
         )
 
         res = driver.execute_script(script, tipos, conceptos, montos)
+        # debug: dump table rows after filling
+        try:
+            rows_after = driver.execute_script(
+                "var tb=document.querySelector('table.table tbody'); if(!tb) return []; return Array.from(tb.querySelectorAll('tr')).map(function(r){ var sel=r.querySelector('select.form-select'); var tipo=sel?sel.value:(r.querySelector('select')?r.querySelector('select').value:''); var text=r.querySelector('input[type=text]'); var concept=text?text.value:''; var num=r.querySelector('input[type=number]'); var monto=num?num.value:''; return {tipo:tipo, concept:concept, monto:monto}; });"
+            )
+        except Exception:
+            rows_after = []
+        print('Payment table AFTER:', rows_after)
         # res should be a dict-like object with keys 'rows' and 'filled'
         rows_count = 0
         filled = 0
